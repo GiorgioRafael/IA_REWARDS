@@ -1,0 +1,127 @@
+{
+  "app_busca": "EDGE",
+  "tempos": {
+    "apos_windows": 0.5,
+    "apos_digitar_app": 0.2,
+    "apos_enter": 4.0,
+    "movimento_mouse": 0.2,
+    "entre_acoes": 1.0,
+    "apos_icone_extensao": {
+      "min": 2.0,
+      "max": 5.0
+    },
+    "apos_double_click_scroll": {
+      "min": 1.0,
+      "max": 3.0
+    },
+    "apos_card_1": {
+      "min": 1.0,
+      "max": 5.0
+    },
+    "apos_card_2": {
+      "min": 2.0,
+      "max": 5.0
+    },
+    "apos_voltar_card_2": {
+      "min": 2.0,
+      "max": 5.0
+    },
+    "apos_card_3": {
+      "min": 2.0,
+      "max": 5.0
+    },
+    "apos_card_detectado": {
+      "min": 2.0,
+      "max": 5.0
+    },
+    "apos_voltar_card_detectado": {
+      "min": 2.0,
+      "max": 5.0
+    }
+  },
+  "coordenadas": {
+    "icone_extensao": {
+      "x": -313,
+      "y": 64
+    },
+    "double_click_scroll": {
+      "x": -27,
+      "y": 303
+    },
+    "card_1": {
+      "x": -622,
+      "y": 400
+    },
+    "card_2": {
+      "x": -596,
+      "y": 510
+    },
+    "card_3": {
+      "x": -581,
+      "y": 608
+    },
+    "voltar": {
+      "x": -1894,
+      "y": 54
+    }
+  },
+  "deteccao_imagem": {
+    "ativada": true,
+    "usar_fallback_coordenadas": true,
+    "template_plus_10": "assets/plus_10.png",
+    "usar_treinamento": true,
+    "treino_dir": "assets/treino_plus_10",
+    "confianca": 0.85,
+    "max_cards": 3,
+    "max_scrolls": 40,
+    "scroll_amount": -2,
+    "detectar_fim_scroll": true,
+    "scroll_end_threshold": 1.0,
+    "scroll_end_width": 700,
+    "scroll_end_height": 850,
+    "scroll_end_x_offset": -620,
+    "scroll_end_y_offset": -360,
+    "scroll_end_region": {
+      "x": null,
+      "y": null,
+      "width": null,
+      "height": null
+    },
+    "capture_offset_x": 0,
+    "capture_offset_y": 0,
+    "click_offset_x": 0,
+    "click_offset_y": 0,
+    "regiao": {
+      "x": null,
+      "y": null,
+      "width": null,
+      "height": null
+    }
+  },
+  "pesquisas": {
+    "desktop_coords": {
+      "x": -1537,
+      "y": 50
+    },
+    "mobile_coords": {
+      "x": -1152,
+      "y": 114
+    },
+    "search_count": 20,
+    "use_mobile": false,
+    "executar_conjunto_diario": true,
+    "usar_ctrl_l_desktop": true,
+    "delay_apos_conjunto_diario": {
+      "min": 2.0,
+      "max": 5.0
+    },
+    "delay_entre_buscas": {
+      "min": 5.0,
+      "max": 8.0
+    },
+    "palavras_por_busca": {
+      "min": 1,
+      "max": 3
+    }
+  }
+}

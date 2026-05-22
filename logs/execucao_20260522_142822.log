@@ -1,0 +1,29 @@
+[14:28:22] ======================================================================
+[14:28:22] Fluxo completo iniciado
+[14:28:22] Arquivo de log: C:\Users\giorg\Documents\GitHub\AI_REWARDS\logs\execucao_20260522_142822.log
+[14:28:22] ======================================================================
+[14:28:22] Iniciando conjunto diario + pesquisas...
+[14:28:22] Preparando automacao completa.
+[14:28:22] Coordenadas carregadas: {'icone_extensao': (-636, 54), 'double_click_scroll': (-406, 578), 'card_1': (-622, 400), 'card_2': (-596, 510), 'card_3': (-581, 608), 'voltar': (-1894, 54)}
+[14:28:22] Abrindo o Microsoft Edge...
+[14:28:22] Pressionando tecla Windows.
+[14:28:23] Digitando app no menu iniciar: EDGE
+[14:28:23] Pressionando Enter para abrir o app.
+[14:28:24] Aguardando Edge abrir por 4.00s.
+[14:28:28] Clicando no icone da extensao...
+[14:28:28] Movendo mouse para 'icone_extensao': x=-636, y=54.
+[14:28:28] Enviando clique em 'icone_extensao'.
+[14:28:28] Aguardando 4.38s (apos_icone_extensao: 2.0-5.0s).
+[14:28:32] Rolando painel e procurando cards com +10...
+[14:28:32] Rolando painel (1/5)...
+[14:28:32] Clicando uma vez na area de scroll: x=-406, y=578.
+[14:28:32] Rolando mouse em 2 passo(s), direcao=-1.
+[14:28:32] Scroll do mouse 1/2.
+[14:28:33] Scroll do mouse 2/2.
+[14:28:33] Procurando +10 na area visivel...
+[14:28:33] Rodando deteccao com 21 template(s), confianca 0.85.
+[14:28:48] Deteccao retornou 0 resultado(s).
+[14:28:48] Todos os alvos encontrados ja foram clicados nessa execucao.
+[14:28:48] Nenhum +10 encontrado depois desse scroll.
+[14:28:48] Automacao interrompida.
+[14:28:48] Finalizando thread do fluxo completo.

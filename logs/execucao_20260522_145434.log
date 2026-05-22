@@ -1,0 +1,119 @@
+[14:54:34] ======================================================================
+[14:54:34] Fluxo completo iniciado
+[14:54:34] Arquivo de log: C:\Users\giorg\Documents\GitHub\AI_REWARDS\logs\execucao_20260522_145434.log
+[14:54:34] ======================================================================
+[14:54:34] Iniciando conjunto diario + pesquisas...
+[14:54:34] Preparando automacao completa.
+[14:54:34] Coordenadas carregadas: {'icone_extensao': (-313, 64), 'double_click_scroll': (-27, 303), 'card_1': (-622, 400), 'card_2': (-596, 510), 'card_3': (-581, 608), 'voltar': (-1894, 54)}
+[14:54:34] Abrindo o Microsoft Edge...
+[14:54:34] Pressionando tecla Windows.
+[14:54:35] Digitando app no menu iniciar: EDGE
+[14:54:35] Pressionando Enter para abrir o app.
+[14:54:36] Aguardando Edge abrir por 4.00s.
+[14:54:40] Clicando no icone da extensao...
+[14:54:40] Movendo mouse para 'icone_extensao': x=-313, y=64.
+[14:54:40] Enviando clique em 'icone_extensao'.
+[14:54:40] Aguardando 3.37s (apos_icone_extensao: 2.0-5.0s).
+[14:54:43] Rolando painel e procurando cards com +10 ate o fim do scroll (limite de seguranca: 40).
+[14:54:43] Clicando uma vez para focar a area de scroll: x=-27, y=303.
+[14:54:43] Rolando painel (1/40)...
+[14:54:43] Movendo mouse para a area de scroll sem clicar: x=-27, y=303.
+[14:54:44] Detector de fim do scroll usando regiao x=-647, y=0, w=700, h=793.
+[14:54:44] Rolando mouse em 2 passo(s), direcao=-1.
+[14:54:44] Scroll do mouse 1/2.
+[14:54:44] Scroll do mouse 2/2.
+[14:54:45] Diferenca visual apos scroll: 13.86 (fim se <= 1.00).
+[14:54:45] Procurando +10 na area visivel...
+[14:54:45] Rodando deteccao com 21 template(s), confianca 0.85.
+[14:55:02] Deteccao retornou 0 resultado(s).
+[14:55:02] Todos os alvos encontrados ja foram clicados nessa execucao.
+[14:55:02] Nenhum +10 encontrado depois desse scroll.
+[14:55:02] Rolando painel (2/40)...
+[14:55:02] Movendo mouse para a area de scroll sem clicar: x=-27, y=303.
+[14:55:03] Detector de fim do scroll usando regiao x=-647, y=0, w=700, h=793.
+[14:55:03] Rolando mouse em 2 passo(s), direcao=-1.
+[14:55:03] Scroll do mouse 1/2.
+[14:55:03] Scroll do mouse 2/2.
+[14:55:03] Diferenca visual apos scroll: 12.34 (fim se <= 1.00).
+[14:55:03] Procurando +10 na area visivel...
+[14:55:03] Rodando deteccao com 21 template(s), confianca 0.85.
+[14:55:21] Deteccao retornou 0 resultado(s).
+[14:55:21] Todos os alvos encontrados ja foram clicados nessa execucao.
+[14:55:21] Nenhum +10 encontrado depois desse scroll.
+[14:55:21] Rolando painel (3/40)...
+[14:55:21] Movendo mouse para a area de scroll sem clicar: x=-27, y=303.
+[14:55:21] Detector de fim do scroll usando regiao x=-647, y=0, w=700, h=793.
+[14:55:21] Rolando mouse em 2 passo(s), direcao=-1.
+[14:55:21] Scroll do mouse 1/2.
+[14:55:21] Scroll do mouse 2/2.
+[14:55:22] Diferenca visual apos scroll: 12.40 (fim se <= 1.00).
+[14:55:22] Procurando +10 na area visivel...
+[14:55:22] Rodando deteccao com 21 template(s), confianca 0.85.
+[14:55:39] Deteccao retornou 0 resultado(s).
+[14:55:39] Todos os alvos encontrados ja foram clicados nessa execucao.
+[14:55:39] Nenhum +10 encontrado depois desse scroll.
+[14:55:39] Rolando painel (4/40)...
+[14:55:39] Movendo mouse para a area de scroll sem clicar: x=-27, y=303.
+[14:55:39] Detector de fim do scroll usando regiao x=-647, y=0, w=700, h=793.
+[14:55:39] Rolando mouse em 2 passo(s), direcao=-1.
+[14:55:39] Scroll do mouse 1/2.
+[14:55:39] Scroll do mouse 2/2.
+[14:55:40] Diferenca visual apos scroll: 12.56 (fim se <= 1.00).
+[14:55:40] Procurando +10 na area visivel...
+[14:55:40] Rodando deteccao com 21 template(s), confianca 0.85.
+[14:55:57] Deteccao retornou 0 resultado(s).
+[14:55:57] Todos os alvos encontrados ja foram clicados nessa execucao.
+[14:55:57] Nenhum +10 encontrado depois desse scroll.
+[14:55:57] Rolando painel (5/40)...
+[14:55:57] Movendo mouse para a area de scroll sem clicar: x=-27, y=303.
+[14:55:58] Detector de fim do scroll usando regiao x=-647, y=0, w=700, h=793.
+[14:55:58] Rolando mouse em 2 passo(s), direcao=-1.
+[14:55:58] Scroll do mouse 1/2.
+[14:55:58] Scroll do mouse 2/2.
+[14:55:58] Diferenca visual apos scroll: 12.16 (fim se <= 1.00).
+[14:55:58] Procurando +10 na area visivel...
+[14:55:58] Rodando deteccao com 21 template(s), confianca 0.85.
+[14:56:16] Deteccao retornou 1 resultado(s).
+[14:56:16] Melhor alvo +10: x=-90, y=759, score=0.98.
+[14:56:16] Card +10 encontrado (1/3). Clicando...
+[14:56:16] Movendo mouse para alvo detectado: x=-90, y=759 (offset 0, 0).
+[14:56:16] Enviando clique no card detectado.
+[14:56:16] Aguardando 4.11s (apos_card_detectado: 2.0-5.0s).
+[14:56:20] Movendo mouse para 'voltar': x=-1894, y=54.
+[14:56:20] Enviando clique em 'voltar'.
+[14:56:20] Aguardando 3.17s (apos_voltar_card_detectado: 2.0-5.0s).
+[14:56:23] Rolando painel (6/40)...
+[14:56:23] Movendo mouse para a area de scroll sem clicar: x=-27, y=303.
+[14:56:23] Detector de fim do scroll usando regiao x=-647, y=0, w=700, h=793.
+[14:56:23] Rolando mouse em 2 passo(s), direcao=-1.
+[14:56:23] Scroll do mouse 1/2.
+[14:56:24] Scroll do mouse 2/2.
+[14:56:24] Diferenca visual apos scroll: 10.82 (fim se <= 1.00).
+[14:56:24] Procurando +10 na area visivel...
+[14:56:24] Rodando deteccao com 21 template(s), confianca 0.85.
+[14:56:41] Deteccao retornou 1 resultado(s).
+[14:56:41] Melhor alvo +10: x=-82, y=934, score=0.96.
+[14:56:41] Card +10 encontrado (2/3). Clicando...
+[14:56:41] Movendo mouse para alvo detectado: x=-82, y=934 (offset 0, 0).
+[14:56:41] Enviando clique no card detectado.
+[14:56:41] Aguardando 2.84s (apos_card_detectado: 2.0-5.0s).
+[14:56:44] Movendo mouse para 'voltar': x=-1894, y=54.
+[14:56:44] Enviando clique em 'voltar'.
+[14:56:44] Aguardando 2.77s (apos_voltar_card_detectado: 2.0-5.0s).
+[14:56:47] Rolando painel (7/40)...
+[14:56:47] Movendo mouse para a area de scroll sem clicar: x=-27, y=303.
+[14:56:47] Detector de fim do scroll usando regiao x=-647, y=0, w=700, h=793.
+[14:56:47] Rolando mouse em 2 passo(s), direcao=-1.
+[14:56:47] Scroll do mouse 1/2.
+[14:56:48] Scroll do mouse 2/2.
+[14:56:48] Diferenca visual apos scroll: 9.84 (fim se <= 1.00).
+[14:56:48] Procurando +10 na area visivel...
+[14:56:48] Rodando deteccao com 21 template(s), confianca 0.85.
+[14:57:05] Deteccao retornou 2 resultado(s).
+[14:57:05] Melhor alvo +10: x=-82, y=684, score=0.96.
+[14:57:05] Card +10 encontrado (3/3). Clicando...
+[14:57:05] Movendo mouse para alvo detectado: x=-82, y=684 (offset 0, 0).
+[14:57:05] Enviando clique no card detectado.
+[14:57:05] Aguardando 3.38s (apos_card_detectado: 2.0-5.0s).
+[14:57:08] Automacao interrompida.
+[14:57:08] Finalizando thread do fluxo completo.
