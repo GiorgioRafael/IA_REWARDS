@@ -35,6 +35,7 @@ from automacao_edge import (
     abrir_edge,
     carregar_coordenadas,
     executar_fluxo_inicial,
+    listar_templates_alvo_visual,
     listar_templates_plus_5,
     listar_templates_plus_10,
 )
@@ -54,6 +55,9 @@ LOGS_DIR = BASE_DIR / "logs"
 
 DEFAULT_CONFIG = {
     "app_busca": "EDGE",
+    "automacao": {
+        "usar_versao_fixa": True,
+    },
     "tempos": {
         "apos_windows": 0.5,
         "apos_digitar_app": 0.2,
@@ -122,6 +126,24 @@ DEFAULT_CONFIG = {
     "debug": {
         "abrir_cmd": True,
     },
+    "alvos_visuais": {
+        "icone_extensao": {
+            "template": "assets/alvos/icone_extensao.png",
+            "treino_dir": "assets/treino_icone_extensao",
+            "confianca": 0.82,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "voltar": {
+            "template": "assets/alvos/voltar.png",
+            "treino_dir": "assets/treino_voltar",
+            "confianca": 0.82,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+    },
     "pesquisas": {
         "desktop_coords": {"x": -1397, "y": 122},
         "search_count": 30,
@@ -132,6 +154,11 @@ DEFAULT_CONFIG = {
         "delay_entre_buscas": {"min": 5.0, "max": 8.0},
         "palavras_por_busca": {"min": 1, "max": 3},
     },
+}
+
+VISUAL_TARGET_LABELS = {
+    "icone_extensao": "Icone da extensao",
+    "voltar": "Botao voltar",
 }
 
 COORD_LABELS = {
@@ -487,6 +514,9 @@ class AutoRewardsApp:
         self.movimento_mouse_var = tk.StringVar(
             value=str(self.config["tempos"]["movimento_mouse"])
         )
+        self.usar_versao_fixa_var = tk.BooleanVar(
+            value=self.config.get("automacao", {}).get("usar_versao_fixa", True)
+        )
         deteccao = self.config["deteccao_imagem"]
         self.deteccao_ativada_var = tk.BooleanVar(value=deteccao["ativada"])
         self.deteccao_fallback_var = tk.BooleanVar(
@@ -541,159 +571,138 @@ class AutoRewardsApp:
             abertura_frame, 4, "Movimento mouse", self.movimento_mouse_var, "seg"
         )
 
-        deteccao_frame = ttk.LabelFrame(
-            self.conjunto_tab, text="Deteccao de imagem +10 / +5", padding="10"
+        modo_frame = ttk.LabelFrame(
+            self.conjunto_tab, text="Modo do conjunto diario", padding="10"
         )
-        deteccao_frame.pack(fill="x", pady=10)
+        modo_frame.pack(fill="x", pady=10)
 
         ttk.Checkbutton(
-            deteccao_frame,
-            text="Usar deteccao de imagem no conjunto diario",
-            variable=self.deteccao_ativada_var,
+            modo_frame,
+            text="Usar versao fixa (coordenadas atuais)",
+            variable=self.usar_versao_fixa_var,
         ).grid(row=0, column=0, columnspan=4, sticky="w", padx=5, pady=3)
 
         ttk.Checkbutton(
-            deteccao_frame,
-            text="Usar coordenadas antigas se o template nao existir",
-            variable=self.deteccao_fallback_var,
+            modo_frame,
+            text="Usar deteccao de imagem nos bonus",
+            variable=self.deteccao_ativada_var,
         ).grid(row=1, column=0, columnspan=4, sticky="w", padx=5, pady=3)
+
+        ttk.Checkbutton(
+            modo_frame,
+            text="Na versao fixa, usar coordenadas se nao houver template",
+            variable=self.deteccao_fallback_var,
+        ).grid(row=2, column=0, columnspan=4, sticky="w", padx=5, pady=3)
+
+        visual_frame = ttk.LabelFrame(
+            self.conjunto_tab, text="Alvos visuais da nova versao", padding="10"
+        )
+        visual_frame.pack(fill="x", pady=10)
+        visual_frame.columnconfigure(1, weight=1)
+        visual_frame.columnconfigure(2, weight=1)
+
+        for row, (nome, label) in enumerate(VISUAL_TARGET_LABELS.items()):
+            ttk.Label(visual_frame, text=f"{label}:").grid(
+                row=row, column=0, sticky="w", padx=5, pady=4
+            )
+            ttk.Button(
+                visual_frame,
+                text="Iniciar treino",
+                command=lambda alvo=nome: self.iniciar_modo_treino_alvo_visual(alvo),
+            ).grid(row=row, column=1, sticky="ew", padx=5, pady=4)
+            ttk.Button(
+                visual_frame,
+                text="Testar deteccao",
+                command=lambda alvo=nome: self.testar_deteccao_alvo_visual(alvo),
+            ).grid(row=row, column=2, sticky="ew", padx=5, pady=4)
+
+        deteccao_frame = ttk.LabelFrame(
+            self.conjunto_tab, text="Bonus Rewards", padding="10"
+        )
+        deteccao_frame.pack(fill="x", pady=10)
+        deteccao_frame.columnconfigure(1, weight=1)
+        deteccao_frame.columnconfigure(2, weight=1)
 
         ttk.Checkbutton(
             deteccao_frame,
             text="Clicar bonus +10",
             variable=self.usar_plus_10_var,
-        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=3)
+        ).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=3)
 
         ttk.Checkbutton(
             deteccao_frame,
             text="Clicar bonus +5",
             variable=self.usar_plus_5_var,
-        ).grid(row=2, column=2, columnspan=2, sticky="w", padx=5, pady=3)
-
-        ttk.Label(deteccao_frame, text="Template +10:").grid(
-            row=3, column=0, sticky="w", padx=5, pady=3
-        )
-        ttk.Entry(deteccao_frame, textvariable=self.template_plus_10_var, width=28).grid(
-            row=3, column=1, columnspan=3, sticky="w", padx=5, pady=3
-        )
-
-        ttk.Label(deteccao_frame, text="Template +5:").grid(
-            row=4, column=0, sticky="w", padx=5, pady=3
-        )
-        ttk.Entry(deteccao_frame, textvariable=self.template_plus_5_var, width=28).grid(
-            row=4, column=1, columnspan=3, sticky="w", padx=5, pady=3
-        )
+        ).grid(row=0, column=2, columnspan=2, sticky="w", padx=5, pady=3)
 
         ttk.Checkbutton(
             deteccao_frame,
             text="Usar base de treino",
             variable=self.usar_treinamento_var,
-        ).grid(row=5, column=0, columnspan=2, sticky="w", padx=5, pady=3)
-
-        ttk.Label(deteccao_frame, text="Treino +10:").grid(
-            row=6, column=0, sticky="w", padx=5, pady=3
-        )
-        ttk.Entry(deteccao_frame, textvariable=self.treino_dir_var, width=28).grid(
-            row=6, column=1, columnspan=3, sticky="w", padx=5, pady=3
-        )
-
-        ttk.Label(deteccao_frame, text="Treino +5:").grid(
-            row=7, column=0, sticky="w", padx=5, pady=3
-        )
-        ttk.Entry(deteccao_frame, textvariable=self.treino_dir_plus_5_var, width=28).grid(
-            row=7, column=1, columnspan=3, sticky="w", padx=5, pady=3
-        )
+        ).grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=3)
 
         ttk.Label(deteccao_frame, text="Confianca:").grid(
-            row=8, column=0, sticky="w", padx=5, pady=3
+            row=2, column=0, sticky="w", padx=5, pady=3
         )
         ttk.Entry(deteccao_frame, textvariable=self.confianca_plus_10_var, width=8).grid(
-            row=8, column=1, sticky="w", padx=5, pady=3
+            row=2, column=1, sticky="w", padx=5, pady=3
         )
         ttk.Label(deteccao_frame, text="Max cards:").grid(
-            row=8, column=2, sticky="w", padx=5, pady=3
+            row=2, column=2, sticky="w", padx=5, pady=3
         )
         ttk.Entry(deteccao_frame, textvariable=self.max_cards_var, width=8).grid(
-            row=8, column=3, sticky="w", padx=5, pady=3
+            row=2, column=3, sticky="w", padx=5, pady=3
         )
 
         ttk.Label(deteccao_frame, text="Limite scrolls:").grid(
-            row=9, column=0, sticky="w", padx=5, pady=3
+            row=3, column=0, sticky="w", padx=5, pady=3
         )
         ttk.Entry(deteccao_frame, textvariable=self.max_scrolls_var, width=8).grid(
-            row=9, column=1, sticky="w", padx=5, pady=3
+            row=3, column=1, sticky="w", padx=5, pady=3
         )
         ttk.Label(deteccao_frame, text="Scroll por busca:").grid(
-            row=9, column=2, sticky="w", padx=5, pady=3
+            row=3, column=2, sticky="w", padx=5, pady=3
         )
         ttk.Entry(deteccao_frame, textvariable=self.scroll_amount_var, width=8).grid(
-            row=9, column=3, sticky="w", padx=5, pady=3
+            row=3, column=3, sticky="w", padx=5, pady=3
         )
 
-        ttk.Label(deteccao_frame, text="Offset click X/Y:").grid(
-            row=10, column=0, sticky="w", padx=5, pady=3
+        ttk.Label(deteccao_frame, text="+10:").grid(
+            row=4, column=0, sticky="w", padx=5, pady=(8, 3)
         )
-        ttk.Entry(deteccao_frame, textvariable=self.click_offset_x_var, width=8).grid(
-            row=10, column=1, sticky="w", padx=5, pady=3
-        )
-        ttk.Entry(deteccao_frame, textvariable=self.click_offset_y_var, width=8).grid(
-            row=10, column=2, sticky="w", padx=5, pady=3
-        )
-
-        ttk.Label(deteccao_frame, text="Offset captura X/Y:").grid(
-            row=11, column=0, sticky="w", padx=5, pady=3
-        )
-        ttk.Entry(deteccao_frame, textvariable=self.capture_offset_x_var, width=8).grid(
-            row=11, column=1, sticky="w", padx=5, pady=3
-        )
-        ttk.Entry(deteccao_frame, textvariable=self.capture_offset_y_var, width=8).grid(
-            row=11, column=2, sticky="w", padx=5, pady=3
-        )
-
         ttk.Button(
             deteccao_frame,
-            text="Capturar template +10",
-            command=self.capturar_template_plus_10,
-        ).grid(row=12, column=0, columnspan=2, sticky="ew", padx=5, pady=(8, 3))
-
-        ttk.Button(
-            deteccao_frame,
-            text="Testar deteccao +10",
-            command=self.testar_deteccao_plus_10,
-        ).grid(row=12, column=2, columnspan=2, sticky="ew", padx=5, pady=(8, 3))
-
-        ttk.Button(
-            deteccao_frame,
-            text="Modo treino +10",
+            text="Iniciar treino",
             command=self.iniciar_modo_treino_plus_10,
-        ).grid(row=13, column=0, columnspan=4, sticky="ew", padx=5, pady=3)
-
+        ).grid(row=4, column=1, sticky="ew", padx=5, pady=(8, 3))
         ttk.Button(
             deteccao_frame,
-            text="Capturar template +5",
-            command=self.capturar_template_plus_5,
-        ).grid(row=14, column=0, columnspan=2, sticky="ew", padx=5, pady=3)
+            text="Testar deteccao",
+            command=self.testar_deteccao_plus_10,
+        ).grid(row=4, column=2, columnspan=2, sticky="ew", padx=5, pady=(8, 3))
 
+        ttk.Label(deteccao_frame, text="+5:").grid(
+            row=5, column=0, sticky="w", padx=5, pady=3
+        )
         ttk.Button(
             deteccao_frame,
-            text="Testar deteccao +5",
-            command=self.testar_deteccao_plus_5,
-        ).grid(row=14, column=2, columnspan=2, sticky="ew", padx=5, pady=3)
-
-        ttk.Button(
-            deteccao_frame,
-            text="Modo treino +5",
+            text="Iniciar treino",
             command=self.iniciar_modo_treino_plus_5,
-        ).grid(row=15, column=0, columnspan=4, sticky="ew", padx=5, pady=3)
+        ).grid(row=5, column=1, sticky="ew", padx=5, pady=3)
+        ttk.Button(
+            deteccao_frame,
+            text="Testar deteccao",
+            command=self.testar_deteccao_plus_5,
+        ).grid(row=5, column=2, columnspan=2, sticky="ew", padx=5, pady=3)
 
         ttk.Button(
             deteccao_frame,
             text="Diagnostico mouse + deteccao",
             command=self.diagnosticar_mouse_deteccao,
-        ).grid(row=16, column=0, columnspan=4, sticky="ew", padx=5, pady=3)
+        ).grid(row=6, column=0, columnspan=4, sticky="ew", padx=5, pady=(8, 3))
 
         coords_frame = ttk.LabelFrame(
-            self.conjunto_tab, text="Coordenadas da extensao", padding="10"
+            self.conjunto_tab, text="Coordenadas da versao fixa", padding="10"
         )
         coords_frame.pack(fill="x", pady=10)
 
@@ -819,6 +828,24 @@ class AutoRewardsApp:
             return caminho
 
         return BASE_DIR / caminho
+
+    def caminho_treino_alvo_visual(self, nome):
+        alvo = self.config.get("alvos_visuais", {}).get(nome, {})
+        caminho = Path(alvo.get("treino_dir", f"assets/treino_{nome}"))
+        if caminho.is_absolute():
+            return caminho
+
+        return BASE_DIR / caminho
+
+    def nome_alvo_visual(self, nome):
+        return VISUAL_TARGET_LABELS.get(nome, nome)
+
+    def mover_mouse_para_resultado(self, resultado):
+        try:
+            mover_mouse(resultado["x"], resultado["y"])
+            return None
+        except Exception as exc:
+            return exc
 
     def capturar_template_plus_10(self):
         if not self.save_config():
@@ -1190,6 +1217,190 @@ class AutoRewardsApp:
             parent=self.root,
         )
 
+    def iniciar_modo_treino_alvo_visual(self, nome):
+        if not self.save_config():
+            return
+
+        label = self.nome_alvo_visual(nome)
+        messagebox.showinfo(
+            f"Treino - {label}",
+            "A janela vai sumir.\n\n"
+            f"Coloque o mouse no centro de '{label}' e pressione F9.\n"
+            "Cada F9 salva uma nova amostra.\n\n"
+            "Pressione ESC para finalizar o treino.",
+            parent=self.root,
+        )
+        self.root.withdraw()
+        self.update_status(f"Treino de {label} ativo: F9 salva amostra, ESC finaliza.")
+        thread = threading.Thread(
+            target=lambda: self._modo_treino_alvo_visual_worker(nome),
+            daemon=True,
+        )
+        thread.start()
+
+    def _modo_treino_alvo_visual_worker(self, nome):
+        resultado = {"erro": None, "arquivos": [], "nome": nome}
+        concluido = threading.Event()
+
+        def on_press(key):
+            if key == keyboard.Key.f9:
+                try:
+                    mouse_x, mouse_y = get_mouse_position()
+                    deteccao = self.config["deteccao_imagem"]
+                    captura_x = mouse_x + int(deteccao["capture_offset_x"])
+                    captura_y = mouse_y + int(deteccao["capture_offset_y"])
+                    treino_dir = self.caminho_treino_alvo_visual(nome)
+                    treino_dir.mkdir(parents=True, exist_ok=True)
+                    arquivo_nome = datetime.now().strftime(f"{nome}_%Y%m%d_%H%M%S_%f.png")
+                    destino = treino_dir / arquivo_nome
+                    capturar_template_em_coordenada(destino, captura_x, captura_y, largura=70, altura=50)
+                    resultado["arquivos"].append(
+                        {
+                            "destino": destino,
+                            "mouse_x": mouse_x,
+                            "mouse_y": mouse_y,
+                            "captura_x": captura_x,
+                            "captura_y": captura_y,
+                        }
+                    )
+                except Exception as exc:
+                    resultado["erro"] = exc
+                    concluido.set()
+                    return False
+
+                return True
+
+            if key == keyboard.Key.esc:
+                concluido.set()
+                return False
+
+            return True
+
+        listener = keyboard.Listener(on_press=on_press)
+        listener.start()
+        concluido.wait()
+        listener.stop()
+
+        self.root.after(0, lambda: self._finalizar_modo_treino_alvo_visual(resultado))
+
+    def _finalizar_modo_treino_alvo_visual(self, resultado):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+        nome = resultado["nome"]
+        label = self.nome_alvo_visual(nome)
+        if resultado["erro"] is not None:
+            self.update_status(f"Erro no treino de {label}.", "red")
+            messagebox.showerror(
+                "Erro",
+                f"Nao foi possivel salvar a amostra de {label}: {resultado['erro']}",
+                parent=self.root,
+            )
+            return
+
+        total = len(resultado["arquivos"])
+        if total == 0:
+            self.update_status(f"Treino de {label} encerrado sem novas amostras.", "orange")
+            return
+
+        ultimo = resultado["arquivos"][-1]
+        self.update_status(f"Treino de {label} finalizado: {total} amostra(s) salvas.", "green")
+        messagebox.showinfo(
+            f"Treino - {label}",
+            f"{total} amostra(s) salvas em:\n{self.caminho_treino_alvo_visual(nome)}\n\n"
+            f"Ultima captura corrigida: x={ultimo['captura_x']}, y={ultimo['captura_y']}",
+            parent=self.root,
+        )
+
+    def testar_deteccao_alvo_visual(self, nome):
+        if not self.save_config():
+            return
+
+        label = self.nome_alvo_visual(nome)
+        self.update_status(f"Testando deteccao de {label}...")
+        self.root.withdraw()
+        thread = threading.Thread(
+            target=lambda: self._testar_deteccao_alvo_visual_worker(nome),
+            daemon=True,
+        )
+        thread.start()
+
+    def _testar_deteccao_alvo_visual_worker(self, nome):
+        time.sleep(0.7)
+        resultado = {"nome": nome, "erro": None, "detectados": [], "total_templates": 0}
+
+        try:
+            templates = listar_templates_alvo_visual(self.config, nome)
+            resultado["total_templates"] = len(templates)
+            if not templates:
+                raise FileNotFoundError(f"Nenhum template treinado para {nome}.")
+
+            alvo_config = self.config.get("alvos_visuais", {}).get(nome, {})
+            resultado["detectados"] = localizar_templates(
+                templates,
+                confianca=float(alvo_config.get("confianca", 0.82)),
+                regiao=alvo_config.get("regiao"),
+                max_resultados=10,
+            )
+        except FileNotFoundError:
+            resultado["erro"] = (
+                "Template nao encontrado",
+                "Use Iniciar treino para salvar pelo menos uma amostra desse alvo.",
+            )
+        except Exception as exc:
+            resultado["erro"] = ("Erro", f"Nao foi possivel testar a deteccao: {exc}")
+
+        self.root.after(
+            0,
+            lambda: self._finalizar_teste_deteccao_alvo_visual(resultado),
+        )
+
+    def _finalizar_teste_deteccao_alvo_visual(self, resultado):
+        detectados = resultado["detectados"]
+        mover_erro = None
+        if resultado["erro"] is None and detectados:
+            mover_erro = self.mover_mouse_para_resultado(detectados[0])
+
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+        nome = resultado["nome"]
+        label = self.nome_alvo_visual(nome)
+        if resultado["erro"] is not None:
+            titulo, mensagem = resultado["erro"]
+            self.update_status(mensagem, "red")
+            messagebox.showerror(titulo, mensagem, parent=self.root)
+            return
+
+        if detectados:
+            melhor = detectados[0]
+            linha_mouse = "O mouse foi movido para essa deteccao."
+            if mover_erro is not None:
+                linha_mouse = f"Falha ao mover o mouse: {mover_erro}"
+            mensagem = (
+                f"{label} encontrado: {len(detectados)} resultado(s).\n"
+                f"Templates usados: {resultado['total_templates']}\n"
+                f"Melhor score: {melhor['score']:.2f}\n"
+                f"Coordenada: x={melhor['x']}, y={melhor['y']}\n\n"
+                f"{linha_mouse}"
+            )
+            self.update_status(
+                f"{label} encontrado: mouse movido para a deteccao.",
+                "green",
+            )
+            messagebox.showinfo(f"Deteccao - {label}", mensagem, parent=self.root)
+            return
+
+        mensagem = (
+            f"Nenhum resultado encontrado para {label}.\n\n"
+            f"Templates usados: {resultado['total_templates']}\n\n"
+            "Tente iniciar o treino novamente com o mouse bem no centro do alvo."
+        )
+        self.update_status(f"Nenhum resultado encontrado para {label}.", "orange")
+        messagebox.showwarning(f"Deteccao - {label}", mensagem, parent=self.root)
+
     def diagnosticar_mouse_deteccao(self):
         if not self.save_config():
             return
@@ -1198,7 +1409,7 @@ class AutoRewardsApp:
             "Diagnostico",
             "A janela vai sumir por alguns segundos.\n\n"
             "Deixe o mouse sobre uma area que voce quer conferir.\n"
-            "O app vai salvar um print do local atual do mouse, detectar o +10 e mover "
+            "O app vai salvar um print do local atual do mouse, detectar o +10/+5 e mover "
             "o mouse para o melhor resultado encontrado.",
             parent=self.root,
         )
@@ -1330,7 +1541,7 @@ class AutoRewardsApp:
         except FileNotFoundError:
             erro = (
                 "Template nao encontrado",
-                "Capture primeiro o template +10 na aba Config conjunto diario.",
+                "Use Iniciar treino para salvar pelo menos uma amostra +10.",
             )
         except Exception as exc:
             erro = ("Erro", f"Nao foi possivel testar a deteccao: {exc}")
@@ -1345,6 +1556,10 @@ class AutoRewardsApp:
         )
 
     def _finalizar_teste_deteccao(self, resultados, erro, total_templates):
+        mover_erro = None
+        if erro is None and resultados:
+            mover_erro = self.mover_mouse_para_resultado(resultados[0])
+
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
@@ -1357,14 +1572,18 @@ class AutoRewardsApp:
 
         if resultados:
             melhor = resultados[0]
+            linha_mouse = "O mouse foi movido para essa deteccao."
+            if mover_erro is not None:
+                linha_mouse = f"Falha ao mover o mouse: {mover_erro}"
             mensagem = (
                 f"+10 encontrado: {len(resultados)} resultado(s).\n"
                 f"Templates usados: {total_templates}\n"
                 f"Melhor score: {melhor['score']:.2f}\n"
-                f"Coordenada: x={melhor['x']}, y={melhor['y']}"
+                f"Coordenada: x={melhor['x']}, y={melhor['y']}\n\n"
+                f"{linha_mouse}"
             )
             self.update_status(
-                f"+10 encontrado: {len(resultados)} resultado(s), melhor score {melhor['score']:.2f}.",
+                f"+10 encontrado: mouse movido para a deteccao.",
                 "green",
             )
             messagebox.showinfo("Deteccao +10", mensagem, parent=self.root)
@@ -1373,7 +1592,7 @@ class AutoRewardsApp:
         mensagem = (
             "Nenhum +10 encontrado com o template atual.\n\n"
             f"Templates usados: {total_templates}\n\n"
-            "Tente capturar o template novamente com o mouse bem no centro do selo +10, "
+            "Tente iniciar o treino novamente com o mouse bem no centro do selo +10, "
             "ou reduza a confianca para 0.75."
         )
         self.update_status("Nenhum +10 encontrado com o template atual.", "orange")
@@ -1410,7 +1629,7 @@ class AutoRewardsApp:
         except FileNotFoundError:
             erro = (
                 "Template +5 nao encontrado",
-                "Capture primeiro o template +5 na aba Config conjunto diario.",
+                "Use Iniciar treino para salvar pelo menos uma amostra +5.",
             )
         except Exception as exc:
             erro = ("Erro", f"Nao foi possivel testar a deteccao +5: {exc}")
@@ -1425,6 +1644,10 @@ class AutoRewardsApp:
         )
 
     def _finalizar_teste_deteccao_plus_5(self, resultados, erro, total_templates):
+        mover_erro = None
+        if erro is None and resultados:
+            mover_erro = self.mover_mouse_para_resultado(resultados[0])
+
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
@@ -1437,14 +1660,18 @@ class AutoRewardsApp:
 
         if resultados:
             melhor = resultados[0]
+            linha_mouse = "O mouse foi movido para essa deteccao."
+            if mover_erro is not None:
+                linha_mouse = f"Falha ao mover o mouse: {mover_erro}"
             mensagem = (
                 f"+5 encontrado: {len(resultados)} resultado(s).\n"
                 f"Templates usados: {total_templates}\n"
                 f"Melhor score: {melhor['score']:.2f}\n"
-                f"Coordenada: x={melhor['x']}, y={melhor['y']}"
+                f"Coordenada: x={melhor['x']}, y={melhor['y']}\n\n"
+                f"{linha_mouse}"
             )
             self.update_status(
-                f"+5 encontrado: {len(resultados)} resultado(s), melhor score {melhor['score']:.2f}.",
+                f"+5 encontrado: mouse movido para a deteccao.",
                 "green",
             )
             messagebox.showinfo("Deteccao +5", mensagem, parent=self.root)
@@ -1453,7 +1680,7 @@ class AutoRewardsApp:
         mensagem = (
             "Nenhum +5 encontrado com o template atual.\n\n"
             f"Templates usados: {total_templates}\n\n"
-            "Tente capturar o template novamente com o mouse bem no centro do selo +5, "
+            "Tente iniciar o treino novamente com o mouse bem no centro do selo +5, "
             "ou reduza a confianca para 0.75."
         )
         self.update_status("Nenhum +5 encontrado com o template atual.", "orange")
@@ -1504,6 +1731,10 @@ class AutoRewardsApp:
             )
             self.config["tempos"]["movimento_mouse"] = self.parse_float(
                 self.movimento_mouse_var, "Movimento mouse"
+            )
+            self.config.setdefault("automacao", {})
+            self.config["automacao"]["usar_versao_fixa"] = (
+                self.usar_versao_fixa_var.get()
             )
 
             for nome, (x_var, y_var) in self.coord_vars.items():
@@ -1850,7 +2081,10 @@ class AutoRewardsApp:
             self.status_com_log("Fluxo completo concluido com sucesso.", "green")
 
     def focar_barra_busca(self, pesquisas):
-        if pesquisas["usar_ctrl_l_desktop"]:
+        if not self.config.get("automacao", {}).get("usar_versao_fixa", True):
+            self.log_execucao("Nova versao ativa: focando barra do Edge com Ctrl+L.")
+            pa.hotkey("ctrl", "l")
+        elif pesquisas["usar_ctrl_l_desktop"]:
             self.log_execucao("Focando barra do Edge com Ctrl+L.")
             pa.hotkey("ctrl", "l")
         else:

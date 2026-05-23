@@ -1,5 +1,8 @@
 {
   "app_busca": "EDGE",
+  "automacao": {
+    "usar_versao_fixa": false
+  },
   "tempos": {
     "apos_windows": 0.5,
     "apos_digitar_app": 0.2,
@@ -67,7 +70,7 @@
   },
   "deteccao_imagem": {
     "ativada": true,
-    "usar_fallback_coordenadas": true,
+    "usar_fallback_coordenadas": false,
     "template_plus_10": "assets/plus_10.png",
     "template_plus_5": "assets/plus_5.png",
     "usar_plus_10": true,
@@ -119,6 +122,34 @@
   },
   "debug": {
     "abrir_cmd": true
+  },
+  "alvos_visuais": {
+    "icone_extensao": {
+      "template": "assets/alvos/icone_extensao.png",
+      "treino_dir": "assets/treino_icone_extensao",
+      "confianca": 0.82,
+      "click_offset_x": 0,
+      "click_offset_y": 0,
+      "regiao": {
+        "x": null,
+        "y": null,
+        "width": null,
+        "height": null
+      }
+    },
+    "voltar": {
+      "template": "assets/alvos/voltar.png",
+      "treino_dir": "assets/treino_voltar",
+      "confianca": 0.82,
+      "click_offset_x": 0,
+      "click_offset_y": 0,
+      "regiao": {
+        "x": null,
+        "y": null,
+        "width": null,
+        "height": null
+      }
+    }
   },
   "pesquisas": {
     "desktop_coords": {

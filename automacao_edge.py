@@ -253,6 +253,10 @@ def obter_config_seguranca(config):
     )
 
 
+def usar_versao_fixa(config):
+    return bool(config.get("automacao", {}).get("usar_versao_fixa", True))
+
+
 def mouse_dentro_da_margem(atual_x, atual_y, alvo_x, alvo_y, margem):
     return abs(atual_x - alvo_x) <= margem and abs(atual_y - alvo_y) <= margem
 
@@ -353,6 +357,186 @@ def listar_templates_bonus(config):
         templates.extend(listar_templates_plus_5(config))
 
     return templates
+
+
+def obter_config_alvo_visual(config, nome):
+    alvos = config.get("alvos_visuais", {})
+    alvo = alvos.get(nome)
+    if alvo is None:
+        alvo = {}
+
+    padroes = {
+        "icone_extensao": {
+            "template": "assets/alvos/icone_extensao.png",
+            "treino_dir": "assets/treino_icone_extensao",
+            "confianca": 0.82,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "voltar": {
+            "template": "assets/alvos/voltar.png",
+            "treino_dir": "assets/treino_voltar",
+            "confianca": 0.82,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+    }
+    config_padrao = padroes.get(nome, {})
+    resultado = dict(config_padrao)
+    resultado.update(alvo)
+    return resultado
+
+
+def listar_templates_alvo_visual(config, nome):
+    alvo = obter_config_alvo_visual(config, nome)
+    templates = []
+
+    template = alvo.get("template")
+    if template:
+        template_principal = resolver_caminho(template)
+        if template_principal.exists():
+            templates.append(template_principal)
+    else:
+        template_principal = None
+
+    treino_dir = alvo.get("treino_dir")
+    if treino_dir:
+        treino_path = resolver_caminho(treino_dir)
+        if treino_path.exists():
+            for template_path in sorted(treino_path.glob("*.png")):
+                if template_principal is not None and template_path.resolve() == template_principal.resolve():
+                    continue
+                templates.append(template_path)
+
+    return templates
+
+
+def localizar_alvo_visual(config, nome, status_callback=None, regiao=None):
+    alvo_config = obter_config_alvo_visual(config, nome)
+    templates = listar_templates_alvo_visual(config, nome)
+    if not templates:
+        avisar(
+            status_callback,
+            f"Nenhum template treinado para '{nome}'. Use Iniciar treino antes.",
+            "orange",
+        )
+        return None
+
+    regiao_config = regiao or normalizar_regiao_manual(alvo_config.get("regiao"))
+    confianca = float(alvo_config.get("confianca", 0.82))
+    avisar(
+        status_callback,
+        f"Rodando deteccao do alvo '{nome}' com {len(templates)} template(s), confianca {confianca:.2f}.",
+    )
+    resultados = localizar_templates(
+        templates,
+        confianca=confianca,
+        regiao=regiao_config,
+        max_resultados=10,
+    )
+    avisar(status_callback, f"Alvo '{nome}' retornou {len(resultados)} resultado(s).")
+    if not resultados:
+        return None
+
+    melhor = resultados[0]
+    avisar(
+        status_callback,
+        f"Melhor alvo '{nome}': x={melhor['x']}, y={melhor['y']}, score={melhor['score']:.2f}.",
+    )
+    return melhor
+
+
+def clicar_alvo_visual(
+    config,
+    nome,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+    regiao=None,
+):
+    if deve_parar(stop_event):
+        return False
+
+    alvo = localizar_alvo_visual(config, nome, status_callback, regiao=regiao)
+    if alvo is None:
+        return False
+
+    alvo_config = obter_config_alvo_visual(config, nome)
+    x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
+    y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
+
+    avisar(status_callback, f"Clicando alvo visual '{nome}': x={x}, y={y}.")
+    mover_mouse(x, y)
+    if not dormir(config["tempos"]["movimento_mouse"], stop_event):
+        return False
+    if not garantir_mouse_no_alvo(
+        config,
+        nome,
+        x,
+        y,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    ):
+        return False
+    clicar_mouse()
+    return True
+
+
+def abrir_extensao_rewards(
+    config,
+    coordenadas,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
+    if usar_versao_fixa(config):
+        avisar(status_callback, "Abrindo extensao pela versao fixa.")
+        return clicar_coordenada(
+            config,
+            coordenadas,
+            "icone_extensao",
+            stop_event=stop_event,
+            status_callback=status_callback,
+            safety_callback=safety_callback,
+        )
+
+    avisar(status_callback, "Abrindo extensao por deteccao de imagem.")
+    return clicar_alvo_visual(
+        config,
+        "icone_extensao",
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    )
+
+
+def voltar_card_rewards(
+    config,
+    coordenadas,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
+    if usar_versao_fixa(config):
+        return clicar_coordenada(
+            config,
+            coordenadas,
+            "voltar",
+            stop_event,
+            status_callback,
+            safety_callback,
+        )
+
+    return clicar_alvo_visual(
+        config,
+        "voltar",
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    )
 
 
 def alvo_ja_clicado(alvo, alvos_clicados, margem=45):
@@ -487,6 +671,8 @@ def focar_area_scroll(
         status_callback=status_callback,
         para_clique=True,
     )
+    if x is None or y is None:
+        return False
 
     if painel is None:
         avisar(status_callback, f"Clicando uma vez para focar a area de scroll: x={x}, y={y}.")
@@ -530,6 +716,8 @@ def posicionar_mouse_area_scroll(
         status_callback=status_callback,
         para_clique=False,
     )
+    if x is None or y is None:
+        return False
 
     if painel is None:
         avisar(status_callback, f"Movendo mouse para a area de scroll sem clicar: x={x}, y={y}.")
@@ -677,6 +865,14 @@ def obter_alvo_area_scroll(config, coordenadas, status_callback=None, para_cliqu
 
         return int(x), int(y), painel
 
+    if not usar_versao_fixa(config):
+        avisar(
+            status_callback,
+            "Painel Rewards nao foi detectado. A nova versao nao vai usar coordenada fixa para scroll.",
+            "red",
+        )
+        return None, None, None
+
     x, y = coordenadas["double_click_scroll"]
     validar_coordenada("double_click_scroll", x, y)
     return int(x), int(y), None
@@ -688,6 +884,8 @@ def obter_regiao_detector_fim_scroll(config, coordenadas, status_callback=None):
         painel = obter_regiao_painel_rewards(config, status_callback)
         if painel is not None:
             return painel
+        if not usar_versao_fixa(config):
+            return None
 
     regiao_manual = normalizar_regiao_manual(deteccao.get("scroll_end_region"))
     if regiao_manual is not None:
@@ -821,6 +1019,9 @@ def painel_extensao_parece_visivel(config, coordenadas, status_callback=None):
             avisar(status_callback, "Painel Rewards visivel pelo detector automatico.")
             return True
 
+        if not usar_versao_fixa(config):
+            return False
+
         x, y = coordenadas["double_click_scroll"]
         regiao = limitar_regiao_virtual(x - 420, y - 280, 520, 700)
         if regiao is None:
@@ -881,10 +1082,9 @@ def recuperar_estado_scroll(
     if obter_config_seguranca(config).get("reabrir_extensao_ao_continuar", True):
         if not painel_extensao_parece_visivel(config, coordenadas, status_callback):
             avisar(status_callback, "Painel nao parece visivel. Clicando no icone da extensao.")
-            if not clicar_coordenada(
+            if not abrir_extensao_rewards(
                 config,
                 coordenadas,
-                "icone_extensao",
                 stop_event=stop_event,
                 status_callback=status_callback,
                 safety_callback=None,
@@ -1151,10 +1351,9 @@ def executar_cards_por_imagem(
         if not esperar_intervalo(config, "apos_card_detectado", stop_event, status_callback):
             return False
 
-        if not clicar_coordenada(
+        if not voltar_card_rewards(
             config,
             coordenadas,
-            "voltar",
             stop_event,
             status_callback,
             safety_callback,
@@ -1246,10 +1445,9 @@ def executar_fluxo_inicial(
         return False
 
     avisar(status_callback, "Clicando no icone da extensao...")
-    if not clicar_coordenada(
+    if not abrir_extensao_rewards(
         config,
         coordenadas,
-        "icone_extensao",
         stop_event,
         status_callback,
         safety_callback,
@@ -1268,6 +1466,14 @@ def executar_fluxo_inicial(
 
     if resultado_imagem is not None:
         return resultado_imagem
+
+    if not usar_versao_fixa(config):
+        avisar(
+            status_callback,
+            "Versao por imagem ativa e nao foi possivel executar por deteccao. Treine os alvos necessarios.",
+            "red",
+        )
+        return False
 
     if not obter_config_deteccao(config).get("usar_fallback_coordenadas", True):
         return False
