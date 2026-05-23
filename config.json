@@ -69,13 +69,27 @@
     "ativada": true,
     "usar_fallback_coordenadas": true,
     "template_plus_10": "assets/plus_10.png",
+    "template_plus_5": "assets/plus_5.png",
+    "usar_plus_10": true,
+    "usar_plus_5": true,
     "usar_treinamento": true,
     "treino_dir": "assets/treino_plus_10",
+    "treino_dir_plus_5": "assets/treino_plus_5",
     "confianca": 0.85,
+    "validar_sinal_mais": true,
     "max_cards": 3,
     "max_scrolls": 40,
-    "scroll_amount": -2,
+    "scroll_amount": -5,
     "detectar_fim_scroll": true,
+    "detectar_painel_automatico": true,
+    "usar_painel_para_scroll": true,
+    "usar_painel_para_deteccao": true,
+    "usar_scrollbar_por_cor": true,
+    "scrollbar_color": "#767676",
+    "scrollbar_tolerance": 28,
+    "scrollbar_min_height": 35,
+    "scrollbar_min_delta": 2,
+    "scrollbar_end_margin": 12,
     "scroll_end_threshold": 1.0,
     "scroll_end_width": 700,
     "scroll_end_height": 850,
@@ -98,6 +112,14 @@
       "height": null
     }
   },
+  "seguranca_mouse": {
+    "ativada": true,
+    "margem_pixels": 35,
+    "reabrir_extensao_ao_continuar": true
+  },
+  "debug": {
+    "abrir_cmd": true
+  },
   "pesquisas": {
     "desktop_coords": {
       "x": -1537,
@@ -110,6 +132,7 @@
     "search_count": 20,
     "use_mobile": false,
     "executar_conjunto_diario": true,
+    "executar_pesquisas": true,
     "usar_ctrl_l_desktop": true,
     "delay_apos_conjunto_diario": {
       "min": 2.0,

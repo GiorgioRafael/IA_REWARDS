@@ -457,6 +457,428 @@ def localizar_templates(template_paths, confianca=0.85, regiao=None, max_resulta
     return filtrados
 
 
+def _contar_pixels_cor(regiao, condicao):
+    if regiao.size == 0:
+        return 0
+
+    mascara = condicao(regiao)
+    return int(mascara.sum())
+
+
+def _pontuar_logo_microsoft(arr, x, y, width, height):
+    top = arr[
+        y : min(arr.shape[0], y + min(110, height)),
+        x : min(arr.shape[1], x + min(240, width)),
+    ]
+    if top.size == 0:
+        return 0
+
+    vermelho = _contar_pixels_cor(
+        top,
+        lambda item: (
+            (item[:, :, 0] > 190)
+            & (item[:, :, 1] < 130)
+            & (item[:, :, 2] < 130)
+        ),
+    )
+    verde = _contar_pixels_cor(
+        top,
+        lambda item: (
+            (item[:, :, 1] > 130)
+            & (item[:, :, 0] < 170)
+            & (item[:, :, 2] < 170)
+        ),
+    )
+    azul = _contar_pixels_cor(
+        top,
+        lambda item: (
+            (item[:, :, 2] > 130)
+            & (item[:, :, 0] < 150)
+            & (item[:, :, 1] < 180)
+        ),
+    )
+    amarelo = _contar_pixels_cor(
+        top,
+        lambda item: (
+            (item[:, :, 0] > 190)
+            & (item[:, :, 1] > 130)
+            & (item[:, :, 2] < 140)
+        ),
+    )
+
+    cores_presentes = sum(valor >= 8 for valor in (vermelho, verde, azul, amarelo))
+    if cores_presentes == 4:
+        return 1.0
+    if cores_presentes == 3:
+        return 0.55
+    return 0.0
+
+
+def _adicionar_candidato_painel(candidatos, arr, light_mask, x, y, width, height, origem):
+    tela_altura, tela_largura = arr.shape[:2]
+    if width < 280 or width > min(900, tela_largura):
+        return
+    if height < 300 or height > tela_altura:
+        return
+
+    area = width * height
+    if area < tela_altura * tela_largura * 0.015:
+        return
+
+    recorte_light = light_mask[y : y + height, x : x + width]
+    light_ratio = float(recorte_light.mean() / 255.0) if recorte_light.size else 0.0
+    if light_ratio < 0.18:
+        return
+
+    logo_score = _pontuar_logo_microsoft(arr, x, y, width, height)
+    altura_score = min(1.0, height / max(1, tela_altura * 0.55))
+    largura_preferida = 1.0 - min(1.0, abs(width - 470) / 470)
+    topo_score = 1.0 - min(1.0, y / max(1, tela_altura * 0.45))
+    lado_score = x / max(1, tela_largura)
+    vertical_score = min(1.0, height / max(1, width * 1.6))
+
+    score = (
+        logo_score * 4.0
+        + altura_score * 2.2
+        + largura_preferida * 1.3
+        + topo_score * 1.1
+        + lado_score * 0.6
+        + vertical_score * 0.8
+        + min(1.0, light_ratio * 1.8)
+    )
+
+    candidatos.append(
+        {
+            "x": int(x),
+            "y": int(y),
+            "width": int(width),
+            "height": int(height),
+            "score": float(score),
+            "logo_score": float(logo_score),
+            "light_ratio": float(light_ratio),
+            "origem": origem,
+        }
+    )
+
+
+def _candidatos_painel_por_projecao(arr, light_mask):
+    candidatos = []
+    altura, largura = light_mask.shape
+    col_ratio = light_mask.mean(axis=0) / 255.0
+    colunas = col_ratio >= 0.36
+
+    inicio = None
+    segmentos = []
+    for indice, ativo in enumerate(colunas):
+        if ativo and inicio is None:
+            inicio = indice
+        elif not ativo and inicio is not None:
+            segmentos.append((inicio, indice))
+            inicio = None
+    if inicio is not None:
+        segmentos.append((inicio, largura))
+
+    for x0, x1 in segmentos:
+        width = x1 - x0
+        if width < 260 or width > min(950, largura):
+            continue
+
+        row_ratio = light_mask[:, x0:x1].mean(axis=1) / 255.0
+        linhas = row_ratio >= 0.22
+        y_inicio = None
+        for indice, ativo in enumerate(linhas):
+            if ativo and y_inicio is None:
+                y_inicio = indice
+            elif not ativo and y_inicio is not None:
+                height = indice - y_inicio
+                _adicionar_candidato_painel(
+                    candidatos,
+                    arr,
+                    light_mask,
+                    x0,
+                    y_inicio,
+                    width,
+                    height,
+                    "projecao",
+                )
+                y_inicio = None
+        if y_inicio is not None:
+            _adicionar_candidato_painel(
+                candidatos,
+                arr,
+                light_mask,
+                x0,
+                y_inicio,
+                width,
+                altura - y_inicio,
+                "projecao",
+            )
+
+    return candidatos
+
+
+def _candidatos_painel_por_logo(arr, light_mask):
+    candidatos = []
+    altura, largura = arr.shape[:2]
+    vermelho = (
+        (arr[:, :, 0] > 190)
+        & (arr[:, :, 1] < 130)
+        & (arr[:, :, 2] < 130)
+    ).astype(np.uint8) * 255
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(vermelho, 8)
+    larguras_provaveis = (360, 420, 480, 540, 620)
+
+    for label in range(1, num_labels):
+        x, y, width, height, area = stats[label]
+        if area < 8 or area > 600:
+            continue
+        if width < 4 or width > 45 or height < 4 or height > 45:
+            continue
+
+        janela_x0 = max(0, x - 12)
+        janela_y0 = max(0, y - 12)
+        janela_x1 = min(largura, x + 58)
+        janela_y1 = min(altura, y + 58)
+        janela = arr[janela_y0:janela_y1, janela_x0:janela_x1]
+        if janela.size == 0:
+            continue
+
+        logo_score = _pontuar_logo_microsoft(
+            arr,
+            janela_x0,
+            janela_y0,
+            janela_x1 - janela_x0,
+            janela_y1 - janela_y0,
+        )
+        if logo_score < 1.0:
+            continue
+
+        panel_x = max(0, janela_x0 - 14)
+        panel_y = max(0, janela_y0 - 12)
+        panel_height = min(altura - panel_y, max(360, int(altura * 0.82)))
+
+        for panel_width in larguras_provaveis:
+            width_final = min(panel_width, largura - panel_x)
+            _adicionar_candidato_painel(
+                candidatos,
+                arr,
+                light_mask,
+                panel_x,
+                panel_y,
+                width_final,
+                panel_height,
+                "logo",
+            )
+
+    return candidatos
+
+
+def detectar_painel_rewards():
+    imagem, offset_x, offset_y = capturar_tela()
+    arr = np.array(imagem.convert("RGB"))
+    gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
+    hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV)
+
+    light = (
+        ((gray >= 222) & (hsv[:, :, 1] <= 85))
+        | ((gray >= 238) & (hsv[:, :, 1] <= 125))
+    ).astype(np.uint8) * 255
+
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (31, 31))
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
+    mask = cv2.morphologyEx(light, cv2.MORPH_CLOSE, kernel_close, iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_open, iterations=1)
+
+    candidatos = []
+    contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for contorno in contornos:
+        x, y, width, height = cv2.boundingRect(contorno)
+        _adicionar_candidato_painel(
+            candidatos,
+            arr,
+            light,
+            x,
+            y,
+            width,
+            height,
+            "contorno",
+        )
+
+    candidatos.extend(_candidatos_painel_por_projecao(arr, light))
+    candidatos.extend(_candidatos_painel_por_logo(arr, light))
+    if not candidatos:
+        return None
+
+    candidatos.sort(key=lambda item: item["score"], reverse=True)
+    melhor = candidatos[0]
+    return {
+        "x": offset_x + melhor["x"],
+        "y": offset_y + melhor["y"],
+        "width": melhor["width"],
+        "height": melhor["height"],
+        "score": melhor["score"],
+        "logo_score": melhor["logo_score"],
+        "light_ratio": melhor["light_ratio"],
+        "origem": melhor["origem"],
+    }
+
+
+def detectar_scrollbar_thumb_em_imagem(
+    imagem,
+    offset_x,
+    offset_y,
+    cor=(118, 118, 118),
+    tolerancia=28,
+    altura_min=35,
+    faixa_direita=32,
+):
+    arr = np.array(imagem.convert("RGB"))
+    altura, largura = arr.shape[:2]
+    if altura <= 0 or largura <= 0:
+        return None
+
+    x0 = max(0, largura - int(faixa_direita))
+    roi = arr[:, x0:largura]
+    alvo = np.array(cor, dtype=np.int16)
+    diff = np.abs(roi.astype(np.int16) - alvo).max(axis=2)
+    canais_max = roi.max(axis=2)
+    canais_min = roi.min(axis=2)
+    cinza_neutro = (
+        (canais_max >= max(0, cor[0] - tolerancia - 10))
+        & (canais_max <= min(255, cor[0] + tolerancia + 20))
+        & ((canais_max - canais_min) <= 22)
+    )
+    mask = ((diff <= int(tolerancia)) | cinza_neutro).astype(np.uint8) * 255
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 9))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    candidatos = []
+    for label in range(1, num_labels):
+        x, y, width, height, area = stats[label]
+        if height < int(altura_min):
+            continue
+        if width < 2 or width > faixa_direita:
+            continue
+        if area < height * 1.6:
+            continue
+
+        candidatos.append(
+            {
+                "x": int(offset_x + x0 + x),
+                "y": int(offset_y + y),
+                "width": int(width),
+                "height": int(height),
+                "area": int(area),
+                "center_y": int(offset_y + y + height / 2),
+                "bottom": int(offset_y + y + height),
+            }
+        )
+
+    if not candidatos:
+        return None
+
+    candidatos.sort(key=lambda item: (item["height"], item["area"]), reverse=True)
+    return candidatos[0]
+
+
+def maior_sequencia_true(valores):
+    maior = 0
+    atual = 0
+    for valor in valores:
+        if valor:
+            atual += 1
+            maior = max(maior, atual)
+        else:
+            atual = 0
+
+    return maior
+
+
+def validar_sinal_mais_no_alvo(alvo, margem=6):
+    largura = int(alvo["width"])
+    altura = int(alvo["height"])
+    regiao = {
+        "x": int(alvo["x"] - largura / 2 - margem),
+        "y": int(alvo["y"] - altura / 2 - margem),
+        "width": int(largura + margem * 2),
+        "height": int(altura + margem * 2),
+    }
+
+    imagem, _, _ = capturar_tela(regiao)
+    arr = np.array(imagem.convert("RGB"))
+
+    teal = (
+        (arr[:, :, 0] < 90)
+        & (arr[:, :, 1] > 60)
+        & (arr[:, :, 2] > 70)
+    )
+    ys, xs = np.where(teal)
+    if len(xs) == 0 or len(ys) == 0:
+        return False, {"motivo": "sem selo azul", "teal_pixels": 0}
+
+    x0, x1 = int(xs.min()), int(xs.max()) + 1
+    y0, y1 = int(ys.min()), int(ys.max()) + 1
+    badge = arr[y0:y1, x0:x1]
+    if badge.size == 0:
+        return False, {"motivo": "recorte vazio"}
+
+    branco = (
+        (badge[:, :, 0] > 180)
+        & (badge[:, :, 1] > 180)
+        & (badge[:, :, 2] > 180)
+    )
+
+    badge_altura, badge_largura = branco.shape
+    sx0 = max(0, int(badge_largura * 0.10))
+    sx1 = min(badge_largura, int(badge_largura * 0.44))
+    sy0 = max(0, int(badge_altura * 0.15))
+    sy1 = min(badge_altura, int(badge_altura * 0.85))
+    simbolo = branco[sy0:sy1, sx0:sx1]
+
+    if simbolo.size == 0:
+        return False, {"motivo": "regiao do simbolo vazia"}
+
+    altura_simbolo, largura_simbolo = simbolo.shape
+    linhas = simbolo.sum(axis=1)
+    colunas = simbolo.sum(axis=0)
+
+    linha_max = int(linhas.max()) if linhas.size else 0
+    coluna_max = int(colunas.max()) if colunas.size else 0
+    linha_idx = int(linhas.argmax()) if linhas.size else 0
+    coluna_idx = int(colunas.argmax()) if colunas.size else 0
+
+    limite_horizontal = max(6, int(largura_simbolo * 0.45))
+    limite_vertical = max(6, int(altura_simbolo * 0.35))
+    tem_horizontal = linha_max >= limite_horizontal
+    tem_vertical = coluna_max >= limite_vertical
+
+    janela = simbolo[
+        max(0, linha_idx - 2) : min(altura_simbolo, linha_idx + 3),
+        max(0, coluna_idx - 2) : min(largura_simbolo, coluna_idx + 3),
+    ]
+    cruzamento = int(janela.sum()) >= 4
+
+    linha_longa = maior_sequencia_true(linhas >= max(3, limite_horizontal // 2))
+    coluna_longa = maior_sequencia_true(colunas >= max(3, limite_vertical // 2))
+    valido = tem_horizontal and tem_vertical and cruzamento
+
+    detalhes = {
+        "motivo": "ok" if valido else "sem geometria de +",
+        "linha_max": linha_max,
+        "coluna_max": coluna_max,
+        "limite_horizontal": limite_horizontal,
+        "limite_vertical": limite_vertical,
+        "cruzamento": cruzamento,
+        "linha_longa": linha_longa,
+        "coluna_longa": coluna_longa,
+        "badge": (x0, y0, x1 - x0, y1 - y0),
+    }
+    return valido, detalhes
+
+
 def capturar_template_em_coordenada(destino, x, y, largura=70, altura=36):
     destino = Path(destino)
     destino.parent.mkdir(parents=True, exist_ok=True)

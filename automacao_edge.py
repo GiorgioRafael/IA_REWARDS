@@ -17,20 +17,28 @@ try:
     from deteccao_imagem import (
         capturar_tela,
         clicar_mouse,
+        detectar_painel_rewards,
+        detectar_scrollbar_thumb_em_imagem,
+        get_mouse_position,
         localizar_templates,
         mover_mouse,
         obter_bbox_virtual,
         rolar_mouse,
+        validar_sinal_mais_no_alvo,
     )
 
     DETECCAO_IMAGEM_DISPONIVEL = True
 except Exception:
     capturar_tela = None
     clicar_mouse = None
+    detectar_painel_rewards = None
+    detectar_scrollbar_thumb_em_imagem = None
+    get_mouse_position = None
     localizar_templates = None
     mover_mouse = None
     obter_bbox_virtual = None
     rolar_mouse = None
+    validar_sinal_mais_no_alvo = None
     DETECCAO_IMAGEM_DISPONIVEL = False
 
 
@@ -136,7 +144,14 @@ def esperar_intervalo(config, nome_tempo, stop_event=None, status_callback=None)
     return dormir(segundos, stop_event)
 
 
-def clicar_coordenada(config, coordenadas, nome, stop_event=None, status_callback=None):
+def clicar_coordenada(
+    config,
+    coordenadas,
+    nome,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
     if deve_parar(stop_event):
         return False
 
@@ -147,12 +162,29 @@ def clicar_coordenada(config, coordenadas, nome, stop_event=None, status_callbac
     mover_mouse(x, y)
     if not dormir(config["tempos"]["movimento_mouse"], stop_event):
         return False
+    if not garantir_mouse_no_alvo(
+        config,
+        nome,
+        x,
+        y,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    ):
+        return False
     avisar(status_callback, f"Enviando clique em '{nome}'.")
     clicar_mouse()
     return True
 
 
-def double_click_coordenada(config, coordenadas, nome, stop_event=None, status_callback=None):
+def double_click_coordenada(
+    config,
+    coordenadas,
+    nome,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
     if deve_parar(stop_event):
         return False
 
@@ -163,9 +195,29 @@ def double_click_coordenada(config, coordenadas, nome, stop_event=None, status_c
     mover_mouse(x, y)
     if not dormir(config["tempos"]["movimento_mouse"], stop_event):
         return False
+    if not garantir_mouse_no_alvo(
+        config,
+        nome,
+        x,
+        y,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    ):
+        return False
     avisar(status_callback, f"Enviando primeiro clique em '{nome}'.")
     clicar_mouse()
     if not dormir(0.05, stop_event):
+        return False
+    if not garantir_mouse_no_alvo(
+        config,
+        nome,
+        x,
+        y,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    ):
         return False
     avisar(status_callback, f"Enviando segundo clique em '{nome}'.")
     clicar_mouse()
@@ -190,6 +242,70 @@ def obter_config_deteccao(config):
     )
 
 
+def obter_config_seguranca(config):
+    return config.get(
+        "seguranca_mouse",
+        {
+            "ativada": True,
+            "margem_pixels": 35,
+            "reabrir_extensao_ao_continuar": True,
+        },
+    )
+
+
+def mouse_dentro_da_margem(atual_x, atual_y, alvo_x, alvo_y, margem):
+    return abs(atual_x - alvo_x) <= margem and abs(atual_y - alvo_y) <= margem
+
+
+def garantir_mouse_no_alvo(
+    config,
+    nome,
+    x,
+    y,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+    estado=None,
+    recuperar_callback=None,
+):
+    seguranca = obter_config_seguranca(config)
+    if not seguranca.get("ativada", True) or safety_callback is None:
+        return True
+
+    margem = int(seguranca.get("margem_pixels", 35))
+    atual_x, atual_y = get_mouse_position()
+    if mouse_dentro_da_margem(atual_x, atual_y, int(x), int(y), margem):
+        return True
+
+    avisar(
+        status_callback,
+        "Mouse saiu da area esperada. Pausando para confirmacao do usuario.",
+        "orange",
+    )
+    evento = {
+        "nome": nome,
+        "esperado": {"x": int(x), "y": int(y)},
+        "atual": {"x": int(atual_x), "y": int(atual_y)},
+        "margem": margem,
+        "estado": estado or {},
+        "recuperacao": recuperar_callback is not None,
+    }
+    continuar = safety_callback(evento)
+    if not continuar:
+        avisar(status_callback, "Usuario cancelou a execucao apos pausa de seguranca.", "orange")
+        if stop_event is not None:
+            stop_event.set()
+        return False
+
+    avisar(status_callback, "Usuario escolheu continuar. Reposicionando automacao...")
+    if recuperar_callback is not None:
+        if not recuperar_callback():
+            return False
+
+    mover_mouse(x, y)
+    return dormir(config["tempos"]["movimento_mouse"], stop_event)
+
+
 def listar_templates_plus_10(config):
     deteccao = obter_config_deteccao(config)
     templates = []
@@ -208,6 +324,37 @@ def listar_templates_plus_10(config):
     return templates
 
 
+def listar_templates_plus_5(config):
+    deteccao = obter_config_deteccao(config)
+    templates = []
+
+    template_principal = resolver_caminho(deteccao.get("template_plus_5", "assets/plus_5.png"))
+    if template_principal.exists():
+        templates.append(template_principal)
+
+    if deteccao.get("usar_treinamento", True):
+        treino_dir = resolver_caminho(deteccao.get("treino_dir_plus_5", "assets/treino_plus_5"))
+        if treino_dir.exists():
+            for template_path in sorted(treino_dir.glob("*.png")):
+                if template_path.resolve() != template_principal.resolve():
+                    templates.append(template_path)
+
+    return templates
+
+
+def listar_templates_bonus(config):
+    deteccao = obter_config_deteccao(config)
+    templates = []
+
+    if deteccao.get("usar_plus_10", True):
+        templates.extend(listar_templates_plus_10(config))
+
+    if deteccao.get("usar_plus_5", True):
+        templates.extend(listar_templates_plus_5(config))
+
+    return templates
+
+
 def alvo_ja_clicado(alvo, alvos_clicados, margem=45):
     return any(
         abs(alvo["x"] - clicado["x"]) <= margem
@@ -216,31 +363,65 @@ def alvo_ja_clicado(alvo, alvos_clicados, margem=45):
     )
 
 
-def localizar_alvo_plus_10(config, alvos_clicados, status_callback=None):
+def localizar_alvo_bonus(config, alvos_clicados, status_callback=None):
     deteccao = obter_config_deteccao(config)
-    templates = listar_templates_plus_10(config)
+    templates = listar_templates_bonus(config)
 
     if not templates:
-        avisar(status_callback, "Nenhum template +10 disponivel para deteccao.", "orange")
+        avisar(status_callback, "Nenhum template +10/+5 disponivel para deteccao.", "orange")
         return None
 
     avisar(
         status_callback,
-        f"Rodando deteccao com {len(templates)} template(s), confianca {float(deteccao['confianca']):.2f}.",
+        f"Rodando deteccao +10/+5 com {len(templates)} template(s), confianca {float(deteccao['confianca']):.2f}.",
     )
+    regiao_deteccao = normalizar_regiao_manual(deteccao.get("regiao"))
+    if regiao_deteccao is None and deteccao.get("usar_painel_para_deteccao", True):
+        regiao_deteccao = obter_regiao_painel_rewards(config, status_callback)
+
+    if regiao_deteccao is not None:
+        avisar(
+            status_callback,
+            "Busca de bonus limitada ao painel Rewards: "
+            f"x={regiao_deteccao['x']}, y={regiao_deteccao['y']}, "
+            f"w={regiao_deteccao['width']}, h={regiao_deteccao['height']}.",
+        )
+
     resultados = localizar_templates(
         templates,
         confianca=float(deteccao["confianca"]),
-        regiao=deteccao.get("regiao"),
+        regiao=regiao_deteccao,
         max_resultados=20,
     )
     avisar(status_callback, f"Deteccao retornou {len(resultados)} resultado(s).")
 
     for alvo in resultados:
         if not alvo_ja_clicado(alvo, alvos_clicados):
+            if deteccao.get("validar_sinal_mais", True):
+                valido, detalhes = validar_sinal_mais_no_alvo(alvo)
+                if not valido:
+                    avisar(
+                        status_callback,
+                        "Alvo ignorado: parece selo concluido/sem '+'. "
+                        f"x={alvo['x']}, y={alvo['y']}, score={alvo['score']:.2f}, "
+                        f"motivo={detalhes.get('motivo')}, "
+                        f"h={detalhes.get('linha_max')}/{detalhes.get('limite_horizontal')}, "
+                        f"v={detalhes.get('coluna_max')}/{detalhes.get('limite_vertical')}.",
+                        "orange",
+                    )
+                    continue
+
+                avisar(
+                    status_callback,
+                    "Alvo validado como bonus com '+': "
+                    f"x={alvo['x']}, y={alvo['y']}, "
+                    f"h={detalhes.get('linha_max')}/{detalhes.get('limite_horizontal')}, "
+                    f"v={detalhes.get('coluna_max')}/{detalhes.get('limite_vertical')}.",
+                )
+
             avisar(
                 status_callback,
-                f"Melhor alvo +10: x={alvo['x']}, y={alvo['y']}, score={alvo['score']:.2f}.",
+                f"Melhor alvo bonus: x={alvo['x']}, y={alvo['y']}, score={alvo['score']:.2f}, template={alvo.get('template')}.",
             )
             return alvo
 
@@ -248,7 +429,17 @@ def localizar_alvo_plus_10(config, alvos_clicados, status_callback=None):
     return None
 
 
-def clicar_alvo_detectado(config, alvo, stop_event=None, status_callback=None):
+def localizar_alvo_plus_10(config, alvos_clicados, status_callback=None):
+    return localizar_alvo_bonus(config, alvos_clicados, status_callback)
+
+
+def clicar_alvo_detectado(
+    config,
+    alvo,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
     if deve_parar(stop_event):
         return False
 
@@ -265,33 +456,99 @@ def clicar_alvo_detectado(config, alvo, stop_event=None, status_callback=None):
     mover_mouse(x, y)
     if not dormir(config["tempos"]["movimento_mouse"], stop_event):
         return False
+    if not garantir_mouse_no_alvo(
+        config,
+        "card_detectado",
+        x,
+        y,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    ):
+        return False
     avisar(status_callback, "Enviando clique no card detectado.")
     clicar_mouse()
     return True
 
 
-def focar_area_scroll(config, coordenadas, stop_event=None, status_callback=None):
+def focar_area_scroll(
+    config,
+    coordenadas,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
     if deve_parar(stop_event):
         return False
 
-    x, y = coordenadas["double_click_scroll"]
-    validar_coordenada("double_click_scroll", x, y)
+    x, y, painel = obter_alvo_area_scroll(
+        config,
+        coordenadas,
+        status_callback=status_callback,
+        para_clique=True,
+    )
 
-    avisar(status_callback, f"Clicando uma vez para focar a area de scroll: x={x}, y={y}.")
-    clicar_mouse(x, y)
-    return dormir(config["tempos"]["movimento_mouse"], stop_event)
-
-
-def posicionar_mouse_area_scroll(config, coordenadas, stop_event=None, status_callback=None):
-    if deve_parar(stop_event):
-        return False
-
-    x, y = coordenadas["double_click_scroll"]
-    validar_coordenada("double_click_scroll", x, y)
-
-    avisar(status_callback, f"Movendo mouse para a area de scroll sem clicar: x={x}, y={y}.")
+    if painel is None:
+        avisar(status_callback, f"Clicando uma vez para focar a area de scroll: x={x}, y={y}.")
+    else:
+        avisar(
+            status_callback,
+            f"Clicando uma vez no topo seguro do painel detectado: x={x}, y={y}.",
+        )
     mover_mouse(x, y)
-    return dormir(config["tempos"]["movimento_mouse"], stop_event)
+    if not dormir(config["tempos"]["movimento_mouse"], stop_event):
+        return False
+    if not garantir_mouse_no_alvo(
+        config,
+        "area_scroll",
+        x,
+        y,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    ):
+        return False
+    clicar_mouse()
+    return True
+
+
+def posicionar_mouse_area_scroll(
+    config,
+    coordenadas,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+    estado=None,
+    recuperar_callback=None,
+):
+    if deve_parar(stop_event):
+        return False
+
+    x, y, painel = obter_alvo_area_scroll(
+        config,
+        coordenadas,
+        status_callback=status_callback,
+        para_clique=False,
+    )
+
+    if painel is None:
+        avisar(status_callback, f"Movendo mouse para a area de scroll sem clicar: x={x}, y={y}.")
+    else:
+        avisar(status_callback, f"Movendo mouse para dentro do painel detectado: x={x}, y={y}.")
+    mover_mouse(x, y)
+    if not dormir(config["tempos"]["movimento_mouse"], stop_event):
+        return False
+    return garantir_mouse_no_alvo(
+        config,
+        "area_scroll",
+        x,
+        y,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+        estado=estado,
+        recuperar_callback=recuperar_callback,
+    )
 
 
 def normalizar_regiao_manual(regiao):
@@ -335,8 +592,103 @@ def limitar_regiao_virtual(x, y, width, height):
     }
 
 
-def obter_regiao_detector_fim_scroll(config, coordenadas):
+def detectar_painel_automatico_ativado(config):
     deteccao = obter_config_deteccao(config)
+    return bool(deteccao.get("detectar_painel_automatico", True))
+
+
+def cor_hex_para_rgb(valor, padrao=(118, 118, 118)):
+    if not isinstance(valor, str):
+        return padrao
+
+    texto = valor.strip().lstrip("#")
+    if len(texto) != 6:
+        return padrao
+
+    try:
+        return tuple(int(texto[indice : indice + 2], 16) for indice in (0, 2, 4))
+    except ValueError:
+        return padrao
+
+
+def detectar_painel_atual(config, status_callback=None):
+    if not detectar_painel_automatico_ativado(config):
+        return None
+
+    if detectar_painel_rewards is None:
+        avisar(status_callback, "Detector automatico do painel nao esta disponivel.", "orange")
+        return None
+
+    try:
+        painel = detectar_painel_rewards()
+    except Exception as exc:
+        avisar(status_callback, f"Falha ao detectar painel Rewards: {exc}", "orange")
+        return None
+
+    if painel is None:
+        avisar(status_callback, "Painel Rewards nao encontrado automaticamente.", "orange")
+        return None
+
+    regiao = limitar_regiao_virtual(
+        painel["x"],
+        painel["y"],
+        painel["width"],
+        painel["height"],
+    )
+    if regiao is None:
+        avisar(status_callback, "Painel Rewards detectado ficou fora da area util.", "orange")
+        return None
+
+    regiao.update(
+        {
+            "score": painel.get("score"),
+            "logo_score": painel.get("logo_score"),
+            "light_ratio": painel.get("light_ratio"),
+            "origem": painel.get("origem"),
+        }
+    )
+    avisar(
+        status_callback,
+        "Painel Rewards detectado automaticamente: "
+        f"x={regiao['x']}, y={regiao['y']}, "
+        f"w={regiao['width']}, h={regiao['height']}, "
+        f"score={float(regiao.get('score') or 0):.2f}.",
+    )
+    return regiao
+
+
+def obter_regiao_painel_rewards(config, status_callback=None):
+    painel = detectar_painel_atual(config, status_callback)
+    if painel is not None:
+        return painel
+
+    return None
+
+
+def obter_alvo_area_scroll(config, coordenadas, status_callback=None, para_clique=False):
+    painel = obter_regiao_painel_rewards(config, status_callback)
+    if painel is not None:
+        if para_clique:
+            x = painel["x"] + max(60, painel["width"] - 90)
+            y = painel["y"] + min(34, max(20, painel["height"] // 12))
+        else:
+            x = painel["x"] + max(70, min(painel["width"] - 55, painel["width"] // 2))
+            y = painel["y"] + max(120, min(painel["height"] - 80, painel["height"] // 2))
+
+        return int(x), int(y), painel
+
+    x, y = coordenadas["double_click_scroll"]
+    validar_coordenada("double_click_scroll", x, y)
+    return int(x), int(y), None
+
+
+def obter_regiao_detector_fim_scroll(config, coordenadas, status_callback=None):
+    deteccao = obter_config_deteccao(config)
+    if deteccao.get("usar_painel_para_scroll", True):
+        painel = obter_regiao_painel_rewards(config, status_callback)
+        if painel is not None:
+            return painel
+
     regiao_manual = normalizar_regiao_manual(deteccao.get("scroll_end_region"))
     if regiao_manual is not None:
         return regiao_manual
@@ -353,7 +705,7 @@ def obter_regiao_detector_fim_scroll(config, coordenadas):
 
 
 def capturar_assinatura_scroll(config, coordenadas, status_callback=None):
-    regiao = obter_regiao_detector_fim_scroll(config, coordenadas)
+    regiao = obter_regiao_detector_fim_scroll(config, coordenadas, status_callback)
     if regiao is None:
         avisar(status_callback, "Nao consegui montar regiao para detector de fim do scroll.", "orange")
         return None, None
@@ -361,7 +713,24 @@ def capturar_assinatura_scroll(config, coordenadas, status_callback=None):
     imagem, _, _ = capturar_tela(regiao)
     proporcao = regiao["height"] / max(1, regiao["width"])
     assinatura = imagem.convert("L").resize((160, max(80, int(160 * proporcao))))
-    return assinatura, regiao
+    thumb = None
+    deteccao = obter_config_deteccao(config)
+    if deteccao.get("usar_scrollbar_por_cor", True) and detectar_scrollbar_thumb_em_imagem is not None:
+        thumb = detectar_scrollbar_thumb_em_imagem(
+            imagem,
+            regiao["x"],
+            regiao["y"],
+            cor=cor_hex_para_rgb(deteccao.get("scrollbar_color", "#767676")),
+            tolerancia=int(deteccao.get("scrollbar_tolerance", 28)),
+            altura_min=int(deteccao.get("scrollbar_min_height", 35)),
+        )
+
+    estado = {
+        "assinatura": assinatura,
+        "regiao": regiao,
+        "thumb": thumb,
+    }
+    return estado, regiao
 
 
 def calcular_diferenca_scroll(antes, depois):
@@ -370,21 +739,232 @@ def calcular_diferenca_scroll(antes, depois):
     return float(estatistica.mean[0])
 
 
-def rolar_area_extensao(config, coordenadas, stop_event=None, status_callback=None):
+def analisar_estado_scroll(config, antes, depois, direcao, status_callback=None):
+    deteccao = obter_config_deteccao(config)
+    thumb_antes = antes.get("thumb") if antes else None
+    thumb_depois = depois.get("thumb") if depois else None
+    regiao = depois.get("regiao") if depois else None
+
+    if thumb_antes is not None and thumb_depois is not None and regiao is not None:
+        delta = int(thumb_depois["center_y"] - thumb_antes["center_y"])
+        delta_min = int(deteccao.get("scrollbar_min_delta", 2))
+        margem_fim = int(deteccao.get("scrollbar_end_margin", 12))
+        top_regiao = regiao["y"]
+        bottom_regiao = regiao["y"] + regiao["height"]
+        no_fim_baixo = thumb_depois["bottom"] >= bottom_regiao - margem_fim
+        no_fim_topo = thumb_depois["y"] <= top_regiao + margem_fim
+        moveu_thumb = abs(delta) > delta_min
+        fim_scroll = not moveu_thumb
+
+        if direcao < 0 and no_fim_baixo:
+            fim_scroll = True
+        elif direcao > 0 and no_fim_topo:
+            fim_scroll = True
+
+        avisar(
+            status_callback,
+            "Scroll interno detectado por barra cinza: "
+            f"antes_y={thumb_antes['center_y']}, depois_y={thumb_depois['center_y']}, "
+            f"delta={delta}, fim={fim_scroll}.",
+        )
+        if fim_scroll:
+            avisar(status_callback, "Detector da barra interna indicou fim do scroll.", "orange")
+
+        return {
+            "fim_scroll": fim_scroll,
+            "mudou": moveu_thumb,
+            "diferenca": float(delta),
+            "modo": "scrollbar",
+        }
+
+    if antes is None or depois is None:
+        return {
+            "fim_scroll": False,
+            "mudou": True,
+            "diferenca": None,
+            "modo": "indisponivel",
+        }
+
+    assinatura_antes = antes.get("assinatura")
+    assinatura_depois = depois.get("assinatura")
+    if assinatura_antes is None or assinatura_depois is None:
+        return {
+            "fim_scroll": False,
+            "mudou": True,
+            "diferenca": None,
+            "modo": "indisponivel",
+        }
+
+    diferenca = calcular_diferenca_scroll(assinatura_antes, assinatura_depois)
+    limite = float(deteccao.get("scroll_end_threshold", 1.0))
+    fim_scroll = diferenca <= limite
+    mudou = not fim_scroll
+    avisar(
+        status_callback,
+        f"Diferenca visual do painel apos scroll: {diferenca:.2f} (fim se <= {limite:.2f}).",
+    )
+    if fim_scroll:
+        avisar(status_callback, "Detector visual do painel indicou fim do scroll.", "orange")
+
+    return {
+        "fim_scroll": fim_scroll,
+        "mudou": mudou,
+        "diferenca": diferenca,
+        "modo": "visual_painel",
+    }
+
+
+def painel_extensao_parece_visivel(config, coordenadas, status_callback=None):
+    try:
+        painel = obter_regiao_painel_rewards(config, status_callback)
+        if painel is not None:
+            avisar(status_callback, "Painel Rewards visivel pelo detector automatico.")
+            return True
+
+        x, y = coordenadas["double_click_scroll"]
+        regiao = limitar_regiao_virtual(x - 420, y - 280, 520, 700)
+        if regiao is None:
+            return False
+
+        imagem, _, _ = capturar_tela(regiao)
+        cinza = imagem.convert("L")
+        histograma = cinza.histogram()
+        total = max(1, sum(histograma))
+        branco_ratio = sum(histograma[220:]) / total
+        media = ImageStat.Stat(cinza).mean[0]
+        visivel = branco_ratio >= 0.18 or media >= 155
+        avisar(
+            status_callback,
+            "Check painel Rewards: "
+            f"branco={branco_ratio:.2f}, media={media:.1f}, visivel={visivel}.",
+        )
+        return visivel
+    except Exception as exc:
+        avisar(status_callback, f"Nao consegui checar se a extensao esta visivel: {exc}", "orange")
+        return False
+
+
+def rolar_sem_checks(config, stop_event=None, status_callback=None, total_ticks=None):
+    deteccao = obter_config_deteccao(config)
+    scroll_total = int(deteccao["scroll_amount"])
+    if scroll_total == 0:
+        return dormir(0.15, stop_event)
+
+    direcao = 1 if scroll_total > 0 else -1
+    total_passos = abs(scroll_total) if total_ticks is None else int(total_ticks)
+    for indice in range(1, total_passos + 1):
+        if deve_parar(stop_event):
+            return False
+        avisar(status_callback, f"Replay scroll {indice}/{total_passos}.")
+        rolar_mouse(direcao)
+        if not dormir(0.12, stop_event):
+            return False
+
+    return dormir(0.25, stop_event)
+
+
+def recuperar_estado_scroll(
+    config,
+    coordenadas,
+    scrolls_concluidos,
+    ticks_parciais=0,
+    stop_event=None,
+    status_callback=None,
+):
+    avisar(
+        status_callback,
+        "Recuperando estado da extensao com "
+        f"{scrolls_concluidos} scroll(s) concluido(s) e {ticks_parciais} tick(s) parcial(is).",
+        "orange",
+    )
+
+    if obter_config_seguranca(config).get("reabrir_extensao_ao_continuar", True):
+        if not painel_extensao_parece_visivel(config, coordenadas, status_callback):
+            avisar(status_callback, "Painel nao parece visivel. Clicando no icone da extensao.")
+            if not clicar_coordenada(
+                config,
+                coordenadas,
+                "icone_extensao",
+                stop_event=stop_event,
+                status_callback=status_callback,
+                safety_callback=None,
+            ):
+                return False
+            if not esperar_intervalo(
+                config,
+                "apos_icone_extensao",
+                stop_event,
+                status_callback,
+            ):
+                return False
+        else:
+            avisar(status_callback, "Painel parece visivel. Nao vou clicar no icone para evitar fechar.")
+
+    if not focar_area_scroll(
+        config,
+        coordenadas,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=None,
+    ):
+        return False
+
+    if not posicionar_mouse_area_scroll(
+        config,
+        coordenadas,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=None,
+    ):
+        return False
+
+    for indice in range(1, int(scrolls_concluidos) + 1):
+        avisar(status_callback, f"Restaurando posicao do painel: scroll {indice}/{scrolls_concluidos}.")
+        if not rolar_sem_checks(config, stop_event, status_callback):
+            return False
+
+    if int(ticks_parciais) > 0:
+        avisar(status_callback, f"Restaurando ticks parciais: {ticks_parciais}.")
+        if not rolar_sem_checks(config, stop_event, status_callback, total_ticks=ticks_parciais):
+            return False
+
+    avisar(status_callback, "Estado do painel restaurado. Continuando fluxo.")
+    return True
+
+
+def rolar_area_extensao(
+    config,
+    coordenadas,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+    estado=None,
+    recuperar_callback=None,
+):
     if deve_parar(stop_event):
         return {"ok": False, "fim_scroll": False, "mudou": False, "diferenca": None}
 
     deteccao = obter_config_deteccao(config)
     detectar_fim = bool(deteccao.get("detectar_fim_scroll", True))
-    assinatura_antes = None
+    estado_antes_detector = None
     regiao_detector = None
 
-    if not posicionar_mouse_area_scroll(config, coordenadas, stop_event, status_callback):
+    if not posicionar_mouse_area_scroll(
+        config,
+        coordenadas,
+        stop_event,
+        status_callback,
+        safety_callback,
+        estado,
+        recuperar_callback,
+    ):
         return {"ok": False, "fim_scroll": False, "mudou": False, "diferenca": None}
+
+    x, y = get_mouse_position()
 
     if detectar_fim:
         try:
-            assinatura_antes, regiao_detector = capturar_assinatura_scroll(
+            estado_antes_detector, regiao_detector = capturar_assinatura_scroll(
                 config,
                 coordenadas,
                 status_callback,
@@ -408,14 +988,30 @@ def rolar_area_extensao(config, coordenadas, stop_event=None, status_callback=No
     direcao = 1 if scroll_total > 0 else -1
     avisar(status_callback, f"Rolando mouse em {abs(scroll_total)} passo(s), direcao={direcao}.")
     total_passos = abs(scroll_total)
+    if estado is not None:
+        estado["ticks_parciais"] = 0
     for indice in range(1, total_passos + 1):
         if deve_parar(stop_event):
             return {"ok": False, "fim_scroll": False, "mudou": False, "diferenca": None}
 
+        if not garantir_mouse_no_alvo(
+            config,
+            "area_scroll",
+            x,
+            y,
+            stop_event=stop_event,
+            status_callback=status_callback,
+            safety_callback=safety_callback,
+            estado=estado,
+            recuperar_callback=recuperar_callback,
+        ):
+            return {"ok": False, "fim_scroll": False, "mudou": False, "diferenca": None}
         avisar(status_callback, f"Scroll do mouse {indice}/{total_passos}.")
         rolar_mouse(direcao)
         if not dormir(0.18, stop_event):
             return {"ok": False, "fim_scroll": False, "mudou": False, "diferenca": None}
+        if estado is not None:
+            estado["ticks_parciais"] = indice
 
     if not dormir(0.45, stop_event):
         return {"ok": False, "fim_scroll": False, "mudou": False, "diferenca": None}
@@ -423,20 +1019,21 @@ def rolar_area_extensao(config, coordenadas, stop_event=None, status_callback=No
     fim_scroll = False
     mudou = True
     diferenca = None
-    if detectar_fim and assinatura_antes is not None:
+    modo_detector = None
+    if detectar_fim and estado_antes_detector is not None:
         try:
-            assinatura_depois, _ = capturar_assinatura_scroll(config, coordenadas, status_callback)
-            if assinatura_depois is not None:
-                diferenca = calcular_diferenca_scroll(assinatura_antes, assinatura_depois)
-                limite = float(deteccao.get("scroll_end_threshold", 1.0))
-                fim_scroll = diferenca <= limite
-                mudou = not fim_scroll
-                avisar(
-                    status_callback,
-                    f"Diferenca visual apos scroll: {diferenca:.2f} (fim se <= {limite:.2f}).",
-                )
-                if fim_scroll:
-                    avisar(status_callback, "Detector indicou fim do scroll.", "orange")
+            estado_depois_detector, _ = capturar_assinatura_scroll(config, coordenadas, status_callback)
+            analise = analisar_estado_scroll(
+                config,
+                estado_antes_detector,
+                estado_depois_detector,
+                direcao,
+                status_callback,
+            )
+            fim_scroll = bool(analise["fim_scroll"])
+            mudou = bool(analise["mudou"])
+            diferenca = analise.get("diferenca")
+            modo_detector = analise.get("modo")
         except Exception as exc:
             avisar(status_callback, f"Detector de fim do scroll falhou depois do scroll: {exc}", "orange")
 
@@ -445,10 +1042,17 @@ def rolar_area_extensao(config, coordenadas, stop_event=None, status_callback=No
         "fim_scroll": fim_scroll,
         "mudou": mudou,
         "diferenca": diferenca,
+        "modo_detector": modo_detector,
     }
 
 
-def executar_cards_por_imagem(config, coordenadas, stop_event=None, status_callback=None):
+def executar_cards_por_imagem(
+    config,
+    coordenadas,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
     deteccao = obter_config_deteccao(config)
 
     if not deteccao.get("ativada", False):
@@ -458,11 +1062,11 @@ def executar_cards_por_imagem(config, coordenadas, stop_event=None, status_callb
         avisar(status_callback, "Deteccao de imagem indisponivel. Verifique OpenCV/Pillow.", "red")
         return None
 
-    templates = listar_templates_plus_10(config)
+    templates = listar_templates_bonus(config)
     if not templates:
         avisar(
             status_callback,
-            "Nenhum template +10 encontrado. Capture ou treine primeiro.",
+            "Nenhum template +10/+5 encontrado. Capture ou treine primeiro.",
             "orange",
         )
         return None
@@ -472,13 +1076,24 @@ def executar_cards_por_imagem(config, coordenadas, stop_event=None, status_callb
     alvos_clicados = []
     cards_executados = 0
     scrolls = 0
+    estado_scroll = {"scrolls_concluidos": 0, "ticks_parciais": 0, "cards_executados": 0}
+
+    def recuperar_scroll_atual():
+        return recuperar_estado_scroll(
+            config,
+            coordenadas,
+            estado_scroll["scrolls_concluidos"],
+            ticks_parciais=estado_scroll.get("ticks_parciais", 0),
+            stop_event=stop_event,
+            status_callback=status_callback,
+        )
 
     avisar(
         status_callback,
-        f"Rolando painel e procurando cards com +10 ate o fim do scroll (limite de seguranca: {limite_scrolls}).",
+        f"Rolando painel e procurando cards com +10/+5 ate o fim do scroll (limite de seguranca: {limite_scrolls}).",
     )
 
-    if not focar_area_scroll(config, coordenadas, stop_event, status_callback):
+    if not focar_area_scroll(config, coordenadas, stop_event, status_callback, safety_callback):
         return False
 
     while cards_executados < max_cards:
@@ -495,37 +1110,55 @@ def executar_cards_por_imagem(config, coordenadas, stop_event=None, status_callb
 
         scrolls += 1
         avisar(status_callback, f"Rolando painel ({scrolls}/{limite_scrolls})...")
-        resultado_scroll = rolar_area_extensao(config, coordenadas, stop_event, status_callback)
+        resultado_scroll = rolar_area_extensao(
+            config,
+            coordenadas,
+            stop_event,
+            status_callback,
+            safety_callback,
+            estado_scroll,
+            recuperar_scroll_atual,
+        )
         if not resultado_scroll["ok"]:
             return False
 
         if resultado_scroll.get("mudou"):
+            estado_scroll["scrolls_concluidos"] += 1
             alvos_clicados = []
+        estado_scroll["ticks_parciais"] = 0
 
-        avisar(status_callback, "Procurando +10 na area visivel...")
-        alvo = localizar_alvo_plus_10(config, alvos_clicados, status_callback)
+        avisar(status_callback, "Procurando +10/+5 na area visivel...")
+        alvo = localizar_alvo_bonus(config, alvos_clicados, status_callback)
         if alvo is None:
             if resultado_scroll.get("fim_scroll"):
-                avisar(status_callback, "Fim do scroll detectado e nenhum +10 novo encontrado.", "orange")
+                avisar(status_callback, "Fim do scroll detectado e nenhum +10/+5 novo encontrado.", "orange")
                 break
 
-            avisar(status_callback, "Nenhum +10 encontrado depois desse scroll.", "orange")
+            avisar(status_callback, "Nenhum +10/+5 encontrado depois desse scroll.", "orange")
             continue
 
         cards_executados += 1
+        estado_scroll["cards_executados"] = cards_executados
         alvos_clicados.append({"x": alvo["x"], "y": alvo["y"]})
 
         avisar(
             status_callback,
-            f"Card +10 encontrado ({cards_executados}/{max_cards}). Clicando...",
+            f"Card bonus encontrado ({cards_executados}/{max_cards}). Clicando...",
         )
-        if not clicar_alvo_detectado(config, alvo, stop_event, status_callback):
+        if not clicar_alvo_detectado(config, alvo, stop_event, status_callback, safety_callback):
             return False
 
         if not esperar_intervalo(config, "apos_card_detectado", stop_event, status_callback):
             return False
 
-        if not clicar_coordenada(config, coordenadas, "voltar", stop_event, status_callback):
+        if not clicar_coordenada(
+            config,
+            coordenadas,
+            "voltar",
+            stop_event,
+            status_callback,
+            safety_callback,
+        ):
             return False
 
         if not esperar_intervalo(
@@ -537,14 +1170,20 @@ def executar_cards_por_imagem(config, coordenadas, stop_event=None, status_callb
             return False
 
     if cards_executados == 0:
-        avisar(status_callback, "Nenhum card com +10 encontrado. Seguindo sem clicar.", "orange")
+        avisar(status_callback, "Nenhum card com +10/+5 encontrado. Seguindo sem clicar.", "orange")
     else:
-        avisar(status_callback, f"{cards_executados} card(s) +10 executado(s).", "green")
+        avisar(status_callback, f"{cards_executados} card(s) bonus executado(s).", "green")
 
     return True
 
 
-def executar_cards_por_coordenadas(config, coordenadas, stop_event=None, status_callback=None):
+def executar_cards_por_coordenadas(
+    config,
+    coordenadas,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
     avisar(status_callback, "Abrindo area dos cards...")
     if not double_click_coordenada(
         config,
@@ -552,38 +1191,39 @@ def executar_cards_por_coordenadas(config, coordenadas, stop_event=None, status_
         "double_click_scroll",
         stop_event,
         status_callback,
+        safety_callback,
     ):
         return False
     if not esperar_intervalo(config, "apos_double_click_scroll", stop_event, status_callback):
         return False
 
     avisar(status_callback, "Executando card 1...")
-    if not clicar_coordenada(config, coordenadas, "card_1", stop_event, status_callback):
+    if not clicar_coordenada(config, coordenadas, "card_1", stop_event, status_callback, safety_callback):
         return False
     if not esperar_intervalo(config, "apos_card_1", stop_event, status_callback):
         return False
 
-    if not clicar_coordenada(config, coordenadas, "voltar", stop_event, status_callback):
+    if not clicar_coordenada(config, coordenadas, "voltar", stop_event, status_callback, safety_callback):
         return False
 
     avisar(status_callback, "Executando card 2...")
-    if not clicar_coordenada(config, coordenadas, "card_2", stop_event, status_callback):
+    if not clicar_coordenada(config, coordenadas, "card_2", stop_event, status_callback, safety_callback):
         return False
     if not esperar_intervalo(config, "apos_card_2", stop_event, status_callback):
         return False
 
-    if not clicar_coordenada(config, coordenadas, "voltar", stop_event, status_callback):
+    if not clicar_coordenada(config, coordenadas, "voltar", stop_event, status_callback, safety_callback):
         return False
     if not esperar_intervalo(config, "apos_voltar_card_2", stop_event, status_callback):
         return False
 
     avisar(status_callback, "Executando card 3...")
-    if not clicar_coordenada(config, coordenadas, "card_3", stop_event, status_callback):
+    if not clicar_coordenada(config, coordenadas, "card_3", stop_event, status_callback, safety_callback):
         return False
     if not esperar_intervalo(config, "apos_card_3", stop_event, status_callback):
         return False
 
-    return clicar_coordenada(config, coordenadas, "voltar", stop_event, status_callback)
+    return clicar_coordenada(config, coordenadas, "voltar", stop_event, status_callback, safety_callback)
 
 
 def avisar(status_callback, mensagem, cor="blue"):
@@ -591,7 +1231,13 @@ def avisar(status_callback, mensagem, cor="blue"):
         status_callback(mensagem, cor)
 
 
-def executar_fluxo_inicial(config, coordenadas=None, stop_event=None, status_callback=None):
+def executar_fluxo_inicial(
+    config,
+    coordenadas=None,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
     if coordenadas is None:
         coordenadas = carregar_coordenadas(config)
 
@@ -600,7 +1246,14 @@ def executar_fluxo_inicial(config, coordenadas=None, stop_event=None, status_cal
         return False
 
     avisar(status_callback, "Clicando no icone da extensao...")
-    if not clicar_coordenada(config, coordenadas, "icone_extensao", stop_event, status_callback):
+    if not clicar_coordenada(
+        config,
+        coordenadas,
+        "icone_extensao",
+        stop_event,
+        status_callback,
+        safety_callback,
+    ):
         return False
     if not esperar_intervalo(config, "apos_icone_extensao", stop_event, status_callback):
         return False
@@ -610,6 +1263,7 @@ def executar_fluxo_inicial(config, coordenadas=None, stop_event=None, status_cal
         coordenadas,
         stop_event=stop_event,
         status_callback=status_callback,
+        safety_callback=safety_callback,
     )
 
     if resultado_imagem is not None:
@@ -624,6 +1278,7 @@ def executar_fluxo_inicial(config, coordenadas=None, stop_event=None, status_cal
         coordenadas,
         stop_event=stop_event,
         status_callback=status_callback,
+        safety_callback=safety_callback,
     )
 
 
