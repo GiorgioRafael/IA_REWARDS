@@ -125,12 +125,7 @@
       "x": -1537,
       "y": 50
     },
-    "mobile_coords": {
-      "x": -1152,
-      "y": 114
-    },
     "search_count": 20,
-    "use_mobile": false,
     "executar_conjunto_diario": true,
     "executar_pesquisas": true,
     "usar_ctrl_l_desktop": true,

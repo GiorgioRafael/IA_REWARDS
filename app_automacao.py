@@ -124,9 +124,7 @@ DEFAULT_CONFIG = {
     },
     "pesquisas": {
         "desktop_coords": {"x": -1397, "y": 122},
-        "mobile_coords": {"x": -1152, "y": 114},
         "search_count": 30,
-        "use_mobile": False,
         "executar_conjunto_diario": True,
         "executar_pesquisas": True,
         "usar_ctrl_l_desktop": True,
@@ -241,7 +239,7 @@ def mesclar_config(default, atual):
                 and isinstance(valor, dict)
             ):
                 mesclar(destino[chave], valor)
-            else:
+            elif chave in destino:
                 destino[chave] = valor
 
     mesclar(config, atual)
@@ -252,7 +250,7 @@ def migrar_config_antiga(config):
     if "pesquisas" not in config:
         config["pesquisas"] = {}
 
-    for chave in ("desktop_coords", "mobile_coords", "search_count", "use_mobile"):
+    for chave in ("desktop_coords", "search_count"):
         if chave in config:
             config["pesquisas"][chave] = config[chave]
 
@@ -340,9 +338,6 @@ class AutoRewardsApp:
         self.searches_var = tk.StringVar(value=str(pesquisas["search_count"]))
         self.desktop_x_var = tk.StringVar(value=str(pesquisas["desktop_coords"]["x"]))
         self.desktop_y_var = tk.StringVar(value=str(pesquisas["desktop_coords"]["y"]))
-        self.mobile_x_var = tk.StringVar(value=str(pesquisas["mobile_coords"]["x"]))
-        self.mobile_y_var = tk.StringVar(value=str(pesquisas["mobile_coords"]["y"]))
-        self.use_mobile_var = tk.BooleanVar(value=pesquisas["use_mobile"])
         self.executar_conjunto_var = tk.BooleanVar(
             value=pesquisas["executar_conjunto_diario"]
         )
@@ -406,53 +401,47 @@ class AutoRewardsApp:
 
         ttk.Checkbutton(
             general_frame,
-            text="Usar coordenadas de Celular/Mobile",
-            variable=self.use_mobile_var,
-        ).grid(row=4, column=0, columnspan=4, sticky="w", padx=5, pady=5)
-
-        ttk.Checkbutton(
-            general_frame,
             text="Focar barra do Edge com Ctrl+L no desktop",
             variable=self.usar_ctrl_l_desktop_var,
-        ).grid(row=5, column=0, columnspan=4, sticky="w", padx=5, pady=5)
+        ).grid(row=4, column=0, columnspan=4, sticky="w", padx=5, pady=5)
 
         ttk.Label(general_frame, text="Pausa apos conjunto diario:").grid(
-            row=6, column=0, sticky="w", padx=5, pady=5
+            row=5, column=0, sticky="w", padx=5, pady=5
         )
         ttk.Entry(
             general_frame, textvariable=self.delay_apos_conjunto_min_var, width=8
-        ).grid(row=6, column=1, sticky="w", padx=5, pady=5)
+        ).grid(row=5, column=1, sticky="w", padx=5, pady=5)
         ttk.Label(general_frame, text="ate").grid(
-            row=6, column=2, sticky="w", padx=5, pady=5
+            row=5, column=2, sticky="w", padx=5, pady=5
         )
         ttk.Entry(
             general_frame, textvariable=self.delay_apos_conjunto_max_var, width=8
-        ).grid(row=6, column=3, sticky="w", padx=5, pady=5)
+        ).grid(row=5, column=3, sticky="w", padx=5, pady=5)
 
         ttk.Label(general_frame, text="Delay entre buscas:").grid(
-            row=7, column=0, sticky="w", padx=5, pady=5
+            row=6, column=0, sticky="w", padx=5, pady=5
         )
         ttk.Entry(general_frame, textvariable=self.delay_busca_min_var, width=8).grid(
+            row=6, column=1, sticky="w", padx=5, pady=5
+        )
+        ttk.Label(general_frame, text="ate").grid(
+            row=6, column=2, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(general_frame, textvariable=self.delay_busca_max_var, width=8).grid(
+            row=6, column=3, sticky="w", padx=5, pady=5
+        )
+
+        ttk.Label(general_frame, text="Palavras por busca:").grid(
+            row=7, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(general_frame, textvariable=self.palavras_min_var, width=8).grid(
             row=7, column=1, sticky="w", padx=5, pady=5
         )
         ttk.Label(general_frame, text="ate").grid(
             row=7, column=2, sticky="w", padx=5, pady=5
         )
-        ttk.Entry(general_frame, textvariable=self.delay_busca_max_var, width=8).grid(
-            row=7, column=3, sticky="w", padx=5, pady=5
-        )
-
-        ttk.Label(general_frame, text="Palavras por busca:").grid(
-            row=8, column=0, sticky="w", padx=5, pady=5
-        )
-        ttk.Entry(general_frame, textvariable=self.palavras_min_var, width=8).grid(
-            row=8, column=1, sticky="w", padx=5, pady=5
-        )
-        ttk.Label(general_frame, text="ate").grid(
-            row=8, column=2, sticky="w", padx=5, pady=5
-        )
         ttk.Entry(general_frame, textvariable=self.palavras_max_var, width=8).grid(
-            row=8, column=3, sticky="w", padx=5, pady=5
+            row=7, column=3, sticky="w", padx=5, pady=5
         )
 
         coords_frame = ttk.LabelFrame(
@@ -467,7 +456,6 @@ class AutoRewardsApp:
             self.desktop_x_var,
             self.desktop_y_var,
         )
-        self.add_xy_row(coords_frame, 1, "Mobile", self.mobile_x_var, self.mobile_y_var)
 
         action_frame = ttk.Frame(self.search_tab, padding="10")
         action_frame.pack(fill="x")
@@ -1585,16 +1573,9 @@ class AutoRewardsApp:
             pesquisas["desktop_coords"]["y"] = self.parse_int(
                 self.desktop_y_var, "Desktop Y"
             )
-            pesquisas["mobile_coords"]["x"] = self.parse_int(
-                self.mobile_x_var, "Mobile X"
-            )
-            pesquisas["mobile_coords"]["y"] = self.parse_int(
-                self.mobile_y_var, "Mobile Y"
-            )
             pesquisas["search_count"] = self.parse_int(
                 self.searches_var, "Numero de buscas"
             )
-            pesquisas["use_mobile"] = self.use_mobile_var.get()
             pesquisas["executar_conjunto_diario"] = self.executar_conjunto_var.get()
             pesquisas["executar_pesquisas"] = self.executar_pesquisas_var.get()
             pesquisas["usar_ctrl_l_desktop"] = self.usar_ctrl_l_desktop_var.get()
@@ -1869,15 +1850,9 @@ class AutoRewardsApp:
             self.status_com_log("Fluxo completo concluido com sucesso.", "green")
 
     def focar_barra_busca(self, pesquisas):
-        if not pesquisas["use_mobile"] and pesquisas["usar_ctrl_l_desktop"]:
+        if pesquisas["usar_ctrl_l_desktop"]:
             self.log_execucao("Focando barra do Edge com Ctrl+L.")
             pa.hotkey("ctrl", "l")
-        elif pesquisas["use_mobile"]:
-            self.log_execucao(
-                "Focando barra mobile por coordenada: "
-                f"x={pesquisas['mobile_coords']['x']}, y={pesquisas['mobile_coords']['y']}"
-            )
-            clicar_mouse(pesquisas["mobile_coords"]["x"], pesquisas["mobile_coords"]["y"])
         else:
             self.log_execucao(
                 "Focando barra desktop por coordenada: "
