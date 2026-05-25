@@ -33,8 +33,15 @@ from pynput import keyboard
 
 from automacao_edge import (
     abrir_edge,
+    abrir_extensao_rewards,
+    abrir_ver_tudo_e_detectar_tracker_edge,
     carregar_coordenadas,
+    detectar_estado_tracker_edge,
     executar_fluxo_inicial,
+    clicar_alvo_visual,
+    limpar_cache_execucao,
+    localizar_alvo_visual,
+    listar_templates_tracker_estado,
     listar_templates_alvo_visual,
     listar_templates_plus_5,
     listar_templates_plus_10,
@@ -92,6 +99,7 @@ DEFAULT_CONFIG = {
         "treino_dir": "assets/treino_plus_10",
         "treino_dir_plus_5": "assets/treino_plus_5",
         "confianca": 0.85,
+        "score_forte": 0.95,
         "validar_sinal_mais": True,
         "max_cards": 3,
         "max_scrolls": 40,
@@ -126,11 +134,22 @@ DEFAULT_CONFIG = {
     "debug": {
         "abrir_cmd": True,
     },
+    "edge_tracker": {
+        "treino_dir": "assets/treino_edge_tracker_estados",
+        "estados_minutos": [0, 5, 10, 15, 20, 25, 30],
+        "total_minutos": 30,
+        "confianca": 0.82,
+        "capture_width": 130,
+        "capture_height": 42,
+    },
     "alvos_visuais": {
         "icone_extensao": {
             "template": "assets/alvos/icone_extensao.png",
             "treino_dir": "assets/treino_icone_extensao",
             "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 70,
+            "capture_height": 50,
             "click_offset_x": 0,
             "click_offset_y": 0,
             "regiao": {"x": None, "y": None, "width": None, "height": None},
@@ -139,6 +158,64 @@ DEFAULT_CONFIG = {
             "template": "assets/alvos/voltar.png",
             "treino_dir": "assets/treino_voltar",
             "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 70,
+            "capture_height": 50,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "ver_tudo": {
+            "template": "assets/alvos/ver_tudo.png",
+            "treino_dir": "assets/treino_ver_tudo",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 190,
+            "capture_height": 55,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "exibir_painel": {
+            "template": "assets/alvos/exibir_painel.png",
+            "treino_dir": "assets/treino_exibir_painel",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 160,
+            "capture_height": 42,
+            "click_offset_x": 0,
+            "click_offset_y": 70,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "tracker_edge_tempo": {
+            "template": "assets/alvos/tracker_edge_tempo.png",
+            "treino_dir": "assets/treino_tracker_edge_tempo",
+            "confianca": 0.78,
+            "score_forte": 0.92,
+            "capture_width": 280,
+            "capture_height": 70,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "brotato_gamertag": {
+            "template": "assets/alvos/brotato_gamertag.png",
+            "treino_dir": "assets/treino_brotato_gamertag",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 80,
+            "capture_height": 32,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "brotato_icone_barra": {
+            "template": "assets/alvos/brotato_icone_barra.png",
+            "treino_dir": "assets/treino_brotato_icone_barra",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 70,
+            "capture_height": 60,
             "click_offset_x": 0,
             "click_offset_y": 0,
             "regiao": {"x": None, "y": None, "width": None, "height": None},
@@ -154,11 +231,33 @@ DEFAULT_CONFIG = {
         "delay_entre_buscas": {"min": 5.0, "max": 8.0},
         "palavras_por_busca": {"min": 1, "max": 3},
     },
+    "edge_tempo": {
+        "executar": False,
+        "url_video": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+        "primeira_espera_minutos": 36,
+        "margem_extra_minutos": 1,
+        "max_tentativas": 3,
+        "delay_apos_abrir_video": 8.0,
+        "delay_apos_reabrir_edge": 2.0,
+    },
+    "brotato": {
+        "executar": False,
+        "app_busca": "Brotato",
+        "tempo_minutos": 17,
+        "delay_apos_enter": 10,
+        "menu_timeout_segundos": 120,
+        "fechar_timeout_segundos": 20,
+    },
 }
 
 VISUAL_TARGET_LABELS = {
     "icone_extensao": "Icone da extensao",
     "voltar": "Botao voltar",
+    "ver_tudo": "Botao Ver tudo",
+    "exibir_painel": "Texto Exibir painel",
+    "tracker_edge_tempo": "Navegar com Edge / tempo",
+    "brotato_gamertag": "Brotato Gamer Tag",
+    "brotato_icone_barra": "Brotato icone na barra",
 }
 
 COORD_LABELS = {
@@ -291,10 +390,14 @@ class AutoRewardsApp:
     def __init__(self, root):
         self.root = root
         self.root.title("AI Rewards Automacao")
-        self.root.geometry("860x980")
-        self.root.resizable(False, True)
+        self.root.geometry("760x520")
+        self.root.resizable(False, False)
 
         self.stop_automation = threading.Event()
+        self.pause_automation = threading.Event()
+        self.stop_automation.pause_event = self.pause_automation
+        self.automation_running = False
+        self.brotato_aberto = False
         self.config = self.carregar_config()
         self.coord_vars = {}
         self.tempo_intervalo_vars = {}
@@ -322,8 +425,10 @@ class AutoRewardsApp:
         return mesclar_config(DEFAULT_CONFIG, config_lida)
 
     def salvar_json(self, config):
+        config_para_salvar = copy.deepcopy(config)
+        config_para_salvar.pop("_runtime_cache", None)
         with CONFIG_FILE.open("w", encoding="utf-8") as arquivo:
-            json.dump(config, arquivo, indent=2)
+            json.dump(config_para_salvar, arquivo, indent=2)
 
     def setup_ui(self):
         main_frame = ttk.Frame(self.root, padding="10")
@@ -332,11 +437,39 @@ class AutoRewardsApp:
         self.notebook = ttk.Notebook(main_frame)
         self.notebook.pack(fill="both", expand=True)
 
-        self.search_tab = ttk.Frame(self.notebook, padding="10")
-        self.conjunto_tab = ttk.Frame(self.notebook, padding="10")
+        self.exec_tab = ttk.Frame(self.notebook, padding="10")
+        self.config_tab = ttk.Frame(self.notebook, padding="10")
+        self.treino_tab = ttk.Frame(self.notebook, padding="10")
 
-        self.notebook.add(self.search_tab, text="Pesquisas")
-        self.notebook.add(self.conjunto_tab, text="Config conjunto diario")
+        self.notebook.add(self.exec_tab, text="Execucao")
+        self.notebook.add(self.config_tab, text="Configuracoes")
+        self.notebook.add(self.treino_tab, text="Treinos e testes")
+
+        self.config_notebook = ttk.Notebook(self.config_tab)
+        self.config_notebook.pack(fill="both", expand=True)
+
+        search_container, self.search_tab = self.criar_aba_rolavel(self.config_notebook)
+        edge_container, self.edge_tempo_tab = self.criar_aba_rolavel(self.config_notebook)
+        brotato_container, self.brotato_tab = self.criar_aba_rolavel(self.config_notebook)
+        deteccao_container, self.deteccao_tab = self.criar_aba_rolavel(self.config_notebook)
+        advanced_container, self.advanced_tab = self.criar_aba_rolavel(self.config_notebook)
+
+        self.config_notebook.add(search_container, text="Pesquisas")
+        self.config_notebook.add(edge_container, text="Tempo Edge")
+        self.config_notebook.add(brotato_container, text="Brotato")
+        self.config_notebook.add(deteccao_container, text="Deteccao de imagem")
+        self.config_notebook.add(advanced_container, text="Avancado")
+
+        self.treino_notebook = ttk.Notebook(self.treino_tab)
+        self.treino_notebook.pack(fill="both", expand=True)
+
+        visual_container, self.visual_train_tab = self.criar_aba_rolavel(self.treino_notebook)
+        bonus_container, self.bonus_train_tab = self.criar_aba_rolavel(self.treino_notebook)
+        tracker_container, self.tracker_train_tab = self.criar_aba_rolavel(self.treino_notebook)
+
+        self.treino_notebook.add(visual_container, text="Alvos visuais")
+        self.treino_notebook.add(bonus_container, text="Bonus +10/+5")
+        self.treino_notebook.add(tracker_container, text="Tempo Edge")
 
         self.setup_pesquisas_tab()
         self.setup_conjunto_tab()
@@ -355,12 +488,40 @@ class AutoRewardsApp:
 
         ttk.Label(
             status_frame,
-            text="Pressione ESC a qualquer momento para parar a automacao.",
+            text="Pressione ESC para pausar. Use Resumir ou Cancelar na aba Execucao.",
             foreground="gray",
         ).pack(pady=(8, 0))
 
+    def criar_aba_rolavel(self, parent):
+        container = ttk.Frame(parent)
+        canvas = tk.Canvas(container, highlightthickness=0, borderwidth=0)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        content = ttk.Frame(canvas, padding="10")
+        window_id = canvas.create_window((0, 0), window=content, anchor="nw")
+
+        def atualizar_scrollregion(_event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def ajustar_largura(event):
+            canvas.itemconfigure(window_id, width=event.width)
+
+        def rolar_mouse(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        content.bind("<Configure>", atualizar_scrollregion)
+        canvas.bind("<Configure>", ajustar_largura)
+        canvas.bind("<MouseWheel>", rolar_mouse)
+        content.bind("<MouseWheel>", rolar_mouse)
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        return container, content
+
     def setup_pesquisas_tab(self):
         pesquisas = self.config["pesquisas"]
+        edge_tempo = self.config.get("edge_tempo", {})
+        brotato = self.config.get("brotato", {})
 
         self.searches_var = tk.StringVar(value=str(pesquisas["search_count"]))
         self.desktop_x_var = tk.StringVar(value=str(pesquisas["desktop_coords"]["x"]))
@@ -395,84 +556,229 @@ class AutoRewardsApp:
         self.palavras_max_var = tk.StringVar(
             value=str(pesquisas["palavras_por_busca"]["max"])
         )
-
-        general_frame = ttk.LabelFrame(
-            self.search_tab, text="Configuracoes gerais", padding="10"
+        self.executar_edge_tempo_var = tk.BooleanVar(
+            value=edge_tempo.get("executar", False)
         )
-        general_frame.pack(fill="x", pady=(0, 10))
+        self.edge_video_url_var = tk.StringVar(
+            value=edge_tempo.get("url_video", DEFAULT_CONFIG["edge_tempo"]["url_video"])
+        )
+        self.edge_primeira_espera_var = tk.StringVar(
+            value=str(edge_tempo.get("primeira_espera_minutos", 36))
+        )
+        self.edge_margem_extra_var = tk.StringVar(
+            value=str(edge_tempo.get("margem_extra_minutos", 1))
+        )
+        self.edge_max_tentativas_var = tk.StringVar(
+            value=str(edge_tempo.get("max_tentativas", 3))
+        )
+        self.executar_brotato_var = tk.BooleanVar(
+            value=brotato.get("executar", False)
+        )
+        self.brotato_app_busca_var = tk.StringVar(
+            value=brotato.get("app_busca", DEFAULT_CONFIG["brotato"]["app_busca"])
+        )
+        self.brotato_tempo_minutos_var = tk.StringVar(
+            value=str(brotato.get("tempo_minutos", 17))
+        )
+        self.brotato_delay_apos_enter_var = tk.StringVar(
+            value=str(brotato.get("delay_apos_enter", 10))
+        )
+        self.brotato_menu_timeout_var = tk.StringVar(
+            value=str(brotato.get("menu_timeout_segundos", 120))
+        )
+        self.brotato_fechar_timeout_var = tk.StringVar(
+            value=str(brotato.get("fechar_timeout_segundos", 20))
+        )
 
-        ttk.Label(general_frame, text="Numero de buscas:").grid(
+        fluxo_frame = ttk.LabelFrame(
+            self.exec_tab, text="O que executar", padding="10"
+        )
+        fluxo_frame.pack(fill="x", pady=(0, 10))
+
+        ttk.Checkbutton(
+            fluxo_frame,
+            text="Conjunto diario",
+            variable=self.executar_conjunto_var,
+        ).grid(row=0, column=0, sticky="w", padx=5, pady=5)
+
+        ttk.Checkbutton(
+            fluxo_frame,
+            text="Pesquisas",
+            variable=self.executar_pesquisas_var,
+        ).grid(row=0, column=1, sticky="w", padx=5, pady=5)
+
+        ttk.Checkbutton(
+            fluxo_frame,
+            text="Tempo no Edge",
+            variable=self.executar_edge_tempo_var,
+        ).grid(row=0, column=2, sticky="w", padx=5, pady=5)
+
+        ttk.Checkbutton(
+            fluxo_frame,
+            text="Brotato / Game Pass",
+            variable=self.executar_brotato_var,
+        ).grid(row=1, column=0, sticky="w", padx=5, pady=5)
+
+        ttk.Checkbutton(
+            fluxo_frame,
+            text="Mostrar CMD de debug em tempo real",
+            variable=self.abrir_cmd_debug_var,
+        ).grid(row=1, column=1, columnspan=2, sticky="w", padx=5, pady=5)
+
+        pesquisas_frame = ttk.LabelFrame(
+            self.search_tab, text="Pesquisas > Configuracao", padding="10"
+        )
+        pesquisas_frame.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(pesquisas_frame, text="Numero de buscas:").grid(
             row=0, column=0, sticky="w", padx=5, pady=5
         )
-        ttk.Entry(general_frame, textvariable=self.searches_var, width=10).grid(
+        ttk.Entry(pesquisas_frame, textvariable=self.searches_var, width=10).grid(
             row=0, column=1, sticky="w", padx=5, pady=5
         )
 
         ttk.Checkbutton(
-            general_frame,
-            text="Executar conjunto diario",
-            variable=self.executar_conjunto_var,
-        ).grid(row=1, column=0, columnspan=4, sticky="w", padx=5, pady=5)
-
-        ttk.Checkbutton(
-            general_frame,
-            text="Executar pesquisas",
-            variable=self.executar_pesquisas_var,
-        ).grid(row=2, column=0, columnspan=4, sticky="w", padx=5, pady=5)
-
-        ttk.Checkbutton(
-            general_frame,
-            text="Mostrar CMD de debug em tempo real",
-            variable=self.abrir_cmd_debug_var,
-        ).grid(row=3, column=0, columnspan=4, sticky="w", padx=5, pady=5)
-
-        ttk.Checkbutton(
-            general_frame,
+            pesquisas_frame,
             text="Focar barra do Edge com Ctrl+L no desktop",
             variable=self.usar_ctrl_l_desktop_var,
-        ).grid(row=4, column=0, columnspan=4, sticky="w", padx=5, pady=5)
+        ).grid(row=1, column=0, columnspan=4, sticky="w", padx=5, pady=5)
 
-        ttk.Label(general_frame, text="Pausa apos conjunto diario:").grid(
-            row=5, column=0, sticky="w", padx=5, pady=5
+        ttk.Label(pesquisas_frame, text="Pausa apos conjunto diario:").grid(
+            row=2, column=0, sticky="w", padx=5, pady=5
         )
         ttk.Entry(
-            general_frame, textvariable=self.delay_apos_conjunto_min_var, width=8
-        ).grid(row=5, column=1, sticky="w", padx=5, pady=5)
-        ttk.Label(general_frame, text="ate").grid(
-            row=5, column=2, sticky="w", padx=5, pady=5
+            pesquisas_frame, textvariable=self.delay_apos_conjunto_min_var, width=8
+        ).grid(row=2, column=1, sticky="w", padx=5, pady=5)
+        ttk.Label(pesquisas_frame, text="ate").grid(
+            row=2, column=2, sticky="w", padx=5, pady=5
         )
         ttk.Entry(
-            general_frame, textvariable=self.delay_apos_conjunto_max_var, width=8
-        ).grid(row=5, column=3, sticky="w", padx=5, pady=5)
+            pesquisas_frame, textvariable=self.delay_apos_conjunto_max_var, width=8
+        ).grid(row=2, column=3, sticky="w", padx=5, pady=5)
 
-        ttk.Label(general_frame, text="Delay entre buscas:").grid(
-            row=6, column=0, sticky="w", padx=5, pady=5
+        ttk.Label(pesquisas_frame, text="Delay entre buscas:").grid(
+            row=3, column=0, sticky="w", padx=5, pady=5
         )
-        ttk.Entry(general_frame, textvariable=self.delay_busca_min_var, width=8).grid(
-            row=6, column=1, sticky="w", padx=5, pady=5
+        ttk.Entry(pesquisas_frame, textvariable=self.delay_busca_min_var, width=8).grid(
+            row=3, column=1, sticky="w", padx=5, pady=5
         )
-        ttk.Label(general_frame, text="ate").grid(
-            row=6, column=2, sticky="w", padx=5, pady=5
+        ttk.Label(pesquisas_frame, text="ate").grid(
+            row=3, column=2, sticky="w", padx=5, pady=5
         )
-        ttk.Entry(general_frame, textvariable=self.delay_busca_max_var, width=8).grid(
-            row=6, column=3, sticky="w", padx=5, pady=5
+        ttk.Entry(pesquisas_frame, textvariable=self.delay_busca_max_var, width=8).grid(
+            row=3, column=3, sticky="w", padx=5, pady=5
         )
 
-        ttk.Label(general_frame, text="Palavras por busca:").grid(
-            row=7, column=0, sticky="w", padx=5, pady=5
+        ttk.Label(pesquisas_frame, text="Palavras por busca:").grid(
+            row=4, column=0, sticky="w", padx=5, pady=5
         )
-        ttk.Entry(general_frame, textvariable=self.palavras_min_var, width=8).grid(
-            row=7, column=1, sticky="w", padx=5, pady=5
+        ttk.Entry(pesquisas_frame, textvariable=self.palavras_min_var, width=8).grid(
+            row=4, column=1, sticky="w", padx=5, pady=5
         )
-        ttk.Label(general_frame, text="ate").grid(
-            row=7, column=2, sticky="w", padx=5, pady=5
+        ttk.Label(pesquisas_frame, text="ate").grid(
+            row=4, column=2, sticky="w", padx=5, pady=5
         )
-        ttk.Entry(general_frame, textvariable=self.palavras_max_var, width=8).grid(
-            row=7, column=3, sticky="w", padx=5, pady=5
+        ttk.Entry(pesquisas_frame, textvariable=self.palavras_max_var, width=8).grid(
+            row=4, column=3, sticky="w", padx=5, pady=5
         )
+
+        edge_tempo_frame = ttk.LabelFrame(
+            self.edge_tempo_tab, text="Tempo Edge > Video e verificacao", padding="10"
+        )
+        edge_tempo_frame.pack(fill="x", pady=10)
+        edge_tempo_frame.columnconfigure(1, weight=1)
+
+        ttk.Checkbutton(
+            edge_tempo_frame,
+            text="Executar tempo no Edge depois das etapas selecionadas",
+            variable=self.executar_edge_tempo_var,
+        ).grid(row=0, column=0, columnspan=4, sticky="w", padx=5, pady=5)
+
+        ttk.Label(edge_tempo_frame, text="URL do video:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(edge_tempo_frame, textvariable=self.edge_video_url_var).grid(
+            row=1, column=1, columnspan=3, sticky="ew", padx=5, pady=5
+        )
+
+        ttk.Label(edge_tempo_frame, text="Primeira espera (min):").grid(
+            row=2, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(edge_tempo_frame, textvariable=self.edge_primeira_espera_var, width=8).grid(
+            row=2, column=1, sticky="w", padx=5, pady=5
+        )
+        ttk.Label(edge_tempo_frame, text="Extra (min):").grid(
+            row=2, column=2, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(edge_tempo_frame, textvariable=self.edge_margem_extra_var, width=8).grid(
+            row=2, column=3, sticky="w", padx=5, pady=5
+        )
+
+        ttk.Label(edge_tempo_frame, text="Max verificacoes:").grid(
+            row=3, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(edge_tempo_frame, textvariable=self.edge_max_tentativas_var, width=8).grid(
+            row=3, column=1, sticky="w", padx=5, pady=5
+        )
+
+        brotato_frame = ttk.LabelFrame(
+            self.brotato_tab, text="Brotato > Xbox Game Pass", padding="10"
+        )
+        brotato_frame.pack(fill="x", pady=10)
+        brotato_frame.columnconfigure(1, weight=1)
+
+        ttk.Checkbutton(
+            brotato_frame,
+            text="Executar Brotato / Game Pass",
+            variable=self.executar_brotato_var,
+        ).grid(row=0, column=0, columnspan=4, sticky="w", padx=5, pady=5)
+
+        ttk.Label(brotato_frame, text="Buscar app:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(brotato_frame, textvariable=self.brotato_app_busca_var).grid(
+            row=1, column=1, columnspan=3, sticky="ew", padx=5, pady=5
+        )
+
+        ttk.Label(brotato_frame, text="Timer sem Edge (min):").grid(
+            row=2, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(brotato_frame, textvariable=self.brotato_tempo_minutos_var, width=8).grid(
+            row=2, column=1, sticky="w", padx=5, pady=5
+        )
+
+        ttk.Label(brotato_frame, text="Delay apos abrir (seg):").grid(
+            row=3, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(brotato_frame, textvariable=self.brotato_delay_apos_enter_var, width=8).grid(
+            row=3, column=1, sticky="w", padx=5, pady=5
+        )
+
+        ttk.Label(brotato_frame, text="Timeout menu (seg):").grid(
+            row=4, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(brotato_frame, textvariable=self.brotato_menu_timeout_var, width=8).grid(
+            row=4, column=1, sticky="w", padx=5, pady=5
+        )
+        ttk.Label(brotato_frame, text="Timeout fechar (seg):").grid(
+            row=4, column=2, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(brotato_frame, textvariable=self.brotato_fechar_timeout_var, width=8).grid(
+            row=4, column=3, sticky="w", padx=5, pady=5
+        )
+
+        ttk.Label(
+            brotato_frame,
+            text=(
+                "Com Tempo no Edge ativo, o jogo abre antes da espera do Edge e fecha "
+                "antes da verificacao do Rewards. O timer de 17 minutos e usado apenas sem Edge."
+            ),
+            foreground="gray",
+            wraplength=620,
+        ).grid(row=5, column=0, columnspan=4, sticky="w", padx=5, pady=(8, 3))
 
         coords_frame = ttk.LabelFrame(
-            self.search_tab, text="Coordenadas da barra de busca", padding="10"
+            self.search_tab, text="Pesquisas > Barra de busca", padding="10"
         )
         coords_frame.pack(fill="x", pady=10)
 
@@ -484,23 +790,50 @@ class AutoRewardsApp:
             self.desktop_y_var,
         )
 
-        action_frame = ttk.Frame(self.search_tab, padding="10")
-        action_frame.pack(fill="x")
-        action_frame.columnconfigure(0, weight=1)
-        action_frame.columnconfigure(1, weight=1)
+        self.exec_action_frame = ttk.LabelFrame(
+            self.exec_tab, text="Acoes", padding="10"
+        )
+        self.exec_action_frame.pack(fill="x", pady=10)
+        self.exec_action_frame.columnconfigure(0, weight=1)
+        self.exec_action_frame.columnconfigure(1, weight=1)
+        self.exec_action_frame.columnconfigure(2, weight=1)
 
         self.start_button = ttk.Button(
-            action_frame,
+            self.exec_action_frame,
             text="Iniciar fluxo selecionado",
             command=self.start_fluxo_completo_thread,
         )
         self.start_button.grid(row=0, column=0, padx=5, sticky="ew")
 
         ttk.Button(
-            action_frame,
+            self.exec_action_frame,
             text="Salvar configuracoes",
             command=self.save_config,
-        ).grid(row=0, column=1, padx=5, sticky="ew")
+        ).grid(row=0, column=2, padx=5, sticky="ew")
+
+        self.pause_button = ttk.Button(
+            self.exec_action_frame,
+            text="Pausar",
+            command=self.pausar_automacao,
+            state="disabled",
+        )
+        self.pause_button.grid(row=1, column=0, padx=5, pady=(8, 0), sticky="ew")
+
+        self.resume_button = ttk.Button(
+            self.exec_action_frame,
+            text="Resumir",
+            command=self.resumir_automacao,
+            state="disabled",
+        )
+        self.resume_button.grid(row=1, column=1, padx=5, pady=(8, 0), sticky="ew")
+
+        self.cancel_button = ttk.Button(
+            self.exec_action_frame,
+            text="Cancelar",
+            command=self.cancelar_automacao,
+            state="disabled",
+        )
+        self.cancel_button.grid(row=1, column=2, padx=5, pady=(8, 0), sticky="ew")
 
     def setup_conjunto_tab(self):
         self.app_busca_var = tk.StringVar(value=str(self.config["app_busca"]))
@@ -514,13 +847,12 @@ class AutoRewardsApp:
         self.movimento_mouse_var = tk.StringVar(
             value=str(self.config["tempos"]["movimento_mouse"])
         )
-        self.usar_versao_fixa_var = tk.BooleanVar(
-            value=self.config.get("automacao", {}).get("usar_versao_fixa", True)
-        )
         deteccao = self.config["deteccao_imagem"]
-        self.deteccao_ativada_var = tk.BooleanVar(value=deteccao["ativada"])
-        self.deteccao_fallback_var = tk.BooleanVar(
-            value=deteccao["usar_fallback_coordenadas"]
+        usando_versao_fixa = self.config.get("automacao", {}).get(
+            "usar_versao_fixa", True
+        )
+        self.modo_conjunto_var = tk.StringVar(
+            value="fixa" if usando_versao_fixa else "imagem"
         )
         self.template_plus_10_var = tk.StringVar(value=deteccao["template_plus_10"])
         self.template_plus_5_var = tk.StringVar(
@@ -536,6 +868,7 @@ class AutoRewardsApp:
             value=deteccao.get("treino_dir_plus_5", "assets/treino_plus_5")
         )
         self.confianca_plus_10_var = tk.StringVar(value=str(deteccao["confianca"]))
+        self.score_forte_var = tk.StringVar(value=str(deteccao.get("score_forte", 0.95)))
         self.max_cards_var = tk.StringVar(value=str(deteccao["max_cards"]))
         self.max_scrolls_var = tk.StringVar(value=str(deteccao["max_scrolls"]))
         self.scroll_amount_var = tk.StringVar(value=str(deteccao["scroll_amount"]))
@@ -549,7 +882,7 @@ class AutoRewardsApp:
         self.click_offset_y_var = tk.StringVar(value=str(deteccao["click_offset_y"]))
 
         abertura_frame = ttk.LabelFrame(
-            self.conjunto_tab, text="Abertura do navegador", padding="10"
+            self.advanced_tab, text="Avancado > Abertura do navegador", padding="10"
         )
         abertura_frame.pack(fill="x", pady=(0, 10))
 
@@ -572,30 +905,41 @@ class AutoRewardsApp:
         )
 
         modo_frame = ttk.LabelFrame(
-            self.conjunto_tab, text="Modo do conjunto diario", padding="10"
+            self.deteccao_tab, text="Deteccao de imagem > Modo", padding="10"
         )
         modo_frame.pack(fill="x", pady=10)
 
-        ttk.Checkbutton(
+        ttk.Label(
             modo_frame,
-            text="Usar versao fixa (coordenadas atuais)",
-            variable=self.usar_versao_fixa_var,
-        ).grid(row=0, column=0, columnspan=4, sticky="w", padx=5, pady=3)
+            text="Escolha um modo para executar o conjunto diario:",
+        ).grid(row=0, column=0, columnspan=4, sticky="w", padx=5, pady=(3, 6))
 
-        ttk.Checkbutton(
+        ttk.Radiobutton(
             modo_frame,
-            text="Usar deteccao de imagem nos bonus",
-            variable=self.deteccao_ativada_var,
+            text="Deteccao por imagem (usa templates e treino)",
+            variable=self.modo_conjunto_var,
+            value="imagem",
         ).grid(row=1, column=0, columnspan=4, sticky="w", padx=5, pady=3)
 
-        ttk.Checkbutton(
+        ttk.Radiobutton(
             modo_frame,
-            text="Na versao fixa, usar coordenadas se nao houver template",
-            variable=self.deteccao_fallback_var,
+            text="Coordenadas fixas (modo antigo)",
+            variable=self.modo_conjunto_var,
+            value="fixa",
         ).grid(row=2, column=0, columnspan=4, sticky="w", padx=5, pady=3)
 
+        ttk.Label(
+            modo_frame,
+            text=(
+                "Imagem procura os botoes na tela. Coordenadas fixas usa os pontos "
+                "salvos em Configuracoes > Avancado."
+            ),
+            foreground="gray",
+            wraplength=620,
+        ).grid(row=3, column=0, columnspan=4, sticky="w", padx=5, pady=(6, 3))
+
         visual_frame = ttk.LabelFrame(
-            self.conjunto_tab, text="Alvos visuais da nova versao", padding="10"
+            self.visual_train_tab, text="Treino > Alvos visuais da nova versao", padding="10"
         )
         visual_frame.pack(fill="x", pady=10)
         visual_frame.columnconfigure(1, weight=1)
@@ -616,8 +960,39 @@ class AutoRewardsApp:
                 command=lambda alvo=nome: self.testar_deteccao_alvo_visual(alvo),
             ).grid(row=row, column=2, sticky="ew", padx=5, pady=4)
 
+        tracker_frame = ttk.LabelFrame(
+            self.tracker_train_tab, text="Treino > Tracker Edge 30 minutos", padding="10"
+        )
+        tracker_frame.pack(fill="x", pady=10)
+        tracker_frame.columnconfigure(0, weight=1)
+        tracker_frame.columnconfigure(1, weight=1)
+        tracker_frame.columnconfigure(2, weight=1)
+        tracker_frame.columnconfigure(3, weight=1)
+
+        estados_tracker = self.config.get("edge_tracker", {}).get(
+            "estados_minutos", [0, 5, 10, 15, 20, 25, 30]
+        )
+        for index, minutos in enumerate(estados_tracker):
+            ttk.Button(
+                tracker_frame,
+                text=f"Treinar {minutos}/30",
+                command=lambda valor=minutos: self.iniciar_modo_treino_tracker_estado(valor),
+            ).grid(row=index // 4, column=index % 4, sticky="ew", padx=5, pady=4)
+
+        ttk.Button(
+            tracker_frame,
+            text="Testar progresso Edge",
+            command=self.testar_progresso_edge_tracker,
+        ).grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=(8, 4))
+
+        ttk.Button(
+            tracker_frame,
+            text="Clicar Ver tudo + testar",
+            command=self.testar_ver_tudo_e_progresso_edge,
+        ).grid(row=2, column=2, columnspan=2, sticky="ew", padx=5, pady=(8, 4))
+
         deteccao_frame = ttk.LabelFrame(
-            self.conjunto_tab, text="Bonus Rewards", padding="10"
+            self.deteccao_tab, text="Deteccao de imagem > Confianca e limites", padding="10"
         )
         deteccao_frame.pack(fill="x", pady=10)
         deteccao_frame.columnconfigure(1, weight=1)
@@ -647,62 +1022,76 @@ class AutoRewardsApp:
         ttk.Entry(deteccao_frame, textvariable=self.confianca_plus_10_var, width=8).grid(
             row=2, column=1, sticky="w", padx=5, pady=3
         )
-        ttk.Label(deteccao_frame, text="Max cards:").grid(
+        ttk.Label(deteccao_frame, text="Match forte:").grid(
             row=2, column=2, sticky="w", padx=5, pady=3
         )
-        ttk.Entry(deteccao_frame, textvariable=self.max_cards_var, width=8).grid(
+        ttk.Entry(deteccao_frame, textvariable=self.score_forte_var, width=8).grid(
             row=2, column=3, sticky="w", padx=5, pady=3
         )
 
-        ttk.Label(deteccao_frame, text="Limite scrolls:").grid(
+        ttk.Label(deteccao_frame, text="Max cards:").grid(
             row=3, column=0, sticky="w", padx=5, pady=3
         )
-        ttk.Entry(deteccao_frame, textvariable=self.max_scrolls_var, width=8).grid(
+        ttk.Entry(deteccao_frame, textvariable=self.max_cards_var, width=8).grid(
             row=3, column=1, sticky="w", padx=5, pady=3
         )
+
+        ttk.Label(deteccao_frame, text="Limite scrolls:").grid(
+            row=4, column=0, sticky="w", padx=5, pady=3
+        )
+        ttk.Entry(deteccao_frame, textvariable=self.max_scrolls_var, width=8).grid(
+            row=4, column=1, sticky="w", padx=5, pady=3
+        )
         ttk.Label(deteccao_frame, text="Scroll por busca:").grid(
-            row=3, column=2, sticky="w", padx=5, pady=3
+            row=4, column=2, sticky="w", padx=5, pady=3
         )
         ttk.Entry(deteccao_frame, textvariable=self.scroll_amount_var, width=8).grid(
-            row=3, column=3, sticky="w", padx=5, pady=3
+            row=4, column=3, sticky="w", padx=5, pady=3
         )
 
-        ttk.Label(deteccao_frame, text="+10:").grid(
-            row=4, column=0, sticky="w", padx=5, pady=(8, 3)
+        bonus_train_frame = ttk.LabelFrame(
+            self.bonus_train_tab, text="Treino > Bonus Rewards (+10/+5)", padding="10"
+        )
+        bonus_train_frame.pack(fill="x", pady=(0, 10))
+        bonus_train_frame.columnconfigure(1, weight=1)
+        bonus_train_frame.columnconfigure(2, weight=1)
+
+        ttk.Label(bonus_train_frame, text="+10:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=4
         )
         ttk.Button(
-            deteccao_frame,
+            bonus_train_frame,
             text="Iniciar treino",
             command=self.iniciar_modo_treino_plus_10,
-        ).grid(row=4, column=1, sticky="ew", padx=5, pady=(8, 3))
+        ).grid(row=0, column=1, sticky="ew", padx=5, pady=4)
         ttk.Button(
-            deteccao_frame,
+            bonus_train_frame,
             text="Testar deteccao",
             command=self.testar_deteccao_plus_10,
-        ).grid(row=4, column=2, columnspan=2, sticky="ew", padx=5, pady=(8, 3))
+        ).grid(row=0, column=2, sticky="ew", padx=5, pady=4)
 
-        ttk.Label(deteccao_frame, text="+5:").grid(
-            row=5, column=0, sticky="w", padx=5, pady=3
+        ttk.Label(bonus_train_frame, text="+5:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=4
         )
         ttk.Button(
-            deteccao_frame,
+            bonus_train_frame,
             text="Iniciar treino",
             command=self.iniciar_modo_treino_plus_5,
-        ).grid(row=5, column=1, sticky="ew", padx=5, pady=3)
+        ).grid(row=1, column=1, sticky="ew", padx=5, pady=4)
         ttk.Button(
-            deteccao_frame,
+            bonus_train_frame,
             text="Testar deteccao",
             command=self.testar_deteccao_plus_5,
-        ).grid(row=5, column=2, columnspan=2, sticky="ew", padx=5, pady=3)
+        ).grid(row=1, column=2, sticky="ew", padx=5, pady=4)
 
         ttk.Button(
-            deteccao_frame,
+            bonus_train_frame,
             text="Diagnostico mouse + deteccao",
             command=self.diagnosticar_mouse_deteccao,
-        ).grid(row=6, column=0, columnspan=4, sticky="ew", padx=5, pady=(8, 3))
+        ).grid(row=2, column=0, columnspan=3, sticky="ew", padx=5, pady=(8, 3))
 
         coords_frame = ttk.LabelFrame(
-            self.conjunto_tab, text="Coordenadas da versao fixa", padding="10"
+            self.advanced_tab, text="Avancado > Coordenadas da versao fixa", padding="10"
         )
         coords_frame.pack(fill="x", pady=10)
 
@@ -714,7 +1103,7 @@ class AutoRewardsApp:
             self.add_xy_row(coords_frame, row, label, x_var, y_var)
 
         tempos_frame = ttk.LabelFrame(
-            self.conjunto_tab, text="Intervalos aleatorios", padding="10"
+            self.advanced_tab, text="Avancado > Intervalos aleatorios", padding="10"
         )
         tempos_frame.pack(fill="x", pady=10)
 
@@ -736,23 +1125,12 @@ class AutoRewardsApp:
                 row=row, column=3, sticky="w", padx=5, pady=3
             )
 
-        action_frame = ttk.Frame(self.conjunto_tab, padding="10")
-        action_frame.pack(fill="x")
-        action_frame.columnconfigure(0, weight=1)
-        action_frame.columnconfigure(1, weight=1)
-
         self.conjunto_button = ttk.Button(
-            action_frame,
-            text="Rodar apenas Config conjunto diario",
+            self.exec_action_frame,
+            text="Rodar so conjunto diario",
             command=self.start_conjunto_thread,
         )
-        self.conjunto_button.grid(row=0, column=0, padx=5, sticky="ew")
-
-        ttk.Button(
-            action_frame,
-            text="Salvar configuracoes",
-            command=self.save_config,
-        ).grid(row=0, column=1, padx=5, sticky="ew")
+        self.conjunto_button.grid(row=0, column=1, padx=5, sticky="ew")
 
     def add_xy_row(self, parent, row, label, x_var, y_var):
         ttk.Label(parent, text=f"{label}:").grid(
@@ -832,6 +1210,15 @@ class AutoRewardsApp:
     def caminho_treino_alvo_visual(self, nome):
         alvo = self.config.get("alvos_visuais", {}).get(nome, {})
         caminho = Path(alvo.get("treino_dir", f"assets/treino_{nome}"))
+        if caminho.is_absolute():
+            return caminho
+
+        return BASE_DIR / caminho
+
+    def caminho_treino_tracker_estado(self, minutos):
+        tracker = self.config.get("edge_tracker", {})
+        caminho = Path(tracker.get("treino_dir", "assets/treino_edge_tracker_estados"))
+        caminho = caminho / str(int(minutos))
         if caminho.is_absolute():
             return caminho
 
@@ -1227,6 +1614,7 @@ class AutoRewardsApp:
             "A janela vai sumir.\n\n"
             f"Coloque o mouse no centro de '{label}' e pressione F9.\n"
             "Cada F9 salva uma nova amostra.\n\n"
+            "Dica: no tracker, mire no texto estavel 'Navegar com Edge', nao no numero.\n\n"
             "Pressione ESC para finalizar o treino.",
             parent=self.root,
         )
@@ -1249,11 +1637,20 @@ class AutoRewardsApp:
                     deteccao = self.config["deteccao_imagem"]
                     captura_x = mouse_x + int(deteccao["capture_offset_x"])
                     captura_y = mouse_y + int(deteccao["capture_offset_y"])
+                    alvo_config = self.config.get("alvos_visuais", {}).get(nome, {})
+                    largura = int(alvo_config.get("capture_width", 70))
+                    altura = int(alvo_config.get("capture_height", 50))
                     treino_dir = self.caminho_treino_alvo_visual(nome)
                     treino_dir.mkdir(parents=True, exist_ok=True)
                     arquivo_nome = datetime.now().strftime(f"{nome}_%Y%m%d_%H%M%S_%f.png")
                     destino = treino_dir / arquivo_nome
-                    capturar_template_em_coordenada(destino, captura_x, captura_y, largura=70, altura=50)
+                    capturar_template_em_coordenada(
+                        destino,
+                        captura_x,
+                        captura_y,
+                        largura=largura,
+                        altura=altura,
+                    )
                     resultado["arquivos"].append(
                         {
                             "destino": destino,
@@ -1342,6 +1739,7 @@ class AutoRewardsApp:
                 confianca=float(alvo_config.get("confianca", 0.82)),
                 regiao=alvo_config.get("regiao"),
                 max_resultados=10,
+                parar_score=alvo_config.get("score_forte", 0.95),
             )
         except FileNotFoundError:
             resultado["erro"] = (
@@ -1401,6 +1799,205 @@ class AutoRewardsApp:
         self.update_status(f"Nenhum resultado encontrado para {label}.", "orange")
         messagebox.showwarning(f"Deteccao - {label}", mensagem, parent=self.root)
 
+    def iniciar_modo_treino_tracker_estado(self, minutos):
+        if not self.save_config():
+            return
+
+        messagebox.showinfo(
+            f"Treinar tracker {minutos}/30",
+            "A janela vai sumir.\n\n"
+            f"Coloque o mouse no centro do texto '{minutos}/30 min' e pressione F9.\n"
+            "Cada F9 salva uma nova amostra desse estado.\n\n"
+            "Pressione ESC para finalizar o treino.",
+            parent=self.root,
+        )
+        self.root.withdraw()
+        self.update_status(f"Treino tracker {minutos}/30 ativo: F9 salva amostra, ESC finaliza.")
+        thread = threading.Thread(
+            target=lambda: self._modo_treino_tracker_estado_worker(minutos),
+            daemon=True,
+        )
+        thread.start()
+
+    def _modo_treino_tracker_estado_worker(self, minutos):
+        resultado = {"erro": None, "arquivos": [], "minutos": int(minutos)}
+        concluido = threading.Event()
+
+        def on_press(key):
+            if key == keyboard.Key.f9:
+                try:
+                    mouse_x, mouse_y = get_mouse_position()
+                    deteccao = self.config["deteccao_imagem"]
+                    tracker = self.config.get("edge_tracker", {})
+                    captura_x = mouse_x + int(deteccao["capture_offset_x"])
+                    captura_y = mouse_y + int(deteccao["capture_offset_y"])
+                    largura = int(tracker.get("capture_width", 130))
+                    altura = int(tracker.get("capture_height", 42))
+                    treino_dir = self.caminho_treino_tracker_estado(minutos)
+                    treino_dir.mkdir(parents=True, exist_ok=True)
+                    nome = datetime.now().strftime(f"edge_{int(minutos)}_%Y%m%d_%H%M%S_%f.png")
+                    destino = treino_dir / nome
+                    capturar_template_em_coordenada(
+                        destino,
+                        captura_x,
+                        captura_y,
+                        largura=largura,
+                        altura=altura,
+                    )
+                    resultado["arquivos"].append(
+                        {
+                            "destino": destino,
+                            "mouse_x": mouse_x,
+                            "mouse_y": mouse_y,
+                            "captura_x": captura_x,
+                            "captura_y": captura_y,
+                        }
+                    )
+                except Exception as exc:
+                    resultado["erro"] = exc
+                    concluido.set()
+                    return False
+
+                return True
+
+            if key == keyboard.Key.esc:
+                concluido.set()
+                return False
+
+            return True
+
+        listener = keyboard.Listener(on_press=on_press)
+        listener.start()
+        concluido.wait()
+        listener.stop()
+
+        self.root.after(0, lambda: self._finalizar_modo_treino_tracker_estado(resultado))
+
+    def _finalizar_modo_treino_tracker_estado(self, resultado):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+        minutos = resultado["minutos"]
+        if resultado["erro"] is not None:
+            self.update_status(f"Erro no treino tracker {minutos}/30.", "red")
+            messagebox.showerror(
+                "Erro",
+                f"Nao foi possivel salvar a amostra {minutos}/30: {resultado['erro']}",
+                parent=self.root,
+            )
+            return
+
+        total = len(resultado["arquivos"])
+        if total == 0:
+            self.update_status(f"Treino tracker {minutos}/30 encerrado sem novas amostras.", "orange")
+            return
+
+        ultimo = resultado["arquivos"][-1]
+        self.update_status(f"Treino tracker {minutos}/30 finalizado: {total} amostra(s).", "green")
+        messagebox.showinfo(
+            f"Treino tracker {minutos}/30",
+            f"{total} amostra(s) salvas em:\n{self.caminho_treino_tracker_estado(minutos)}\n\n"
+            f"Ultima captura corrigida: x={ultimo['captura_x']}, y={ultimo['captura_y']}",
+            parent=self.root,
+        )
+
+    def testar_progresso_edge_tracker(self):
+        if not self.save_config():
+            return
+
+        self.root.withdraw()
+        self.update_status("Testando progresso do tracker Edge...")
+        thread = threading.Thread(target=self._testar_progresso_edge_tracker_worker, daemon=True)
+        thread.start()
+
+    def testar_ver_tudo_e_progresso_edge(self):
+        if not self.save_config():
+            return
+
+        self.root.withdraw()
+        self.update_status("Clicando Ver tudo e testando progresso Edge...")
+        thread = threading.Thread(
+            target=self._testar_ver_tudo_e_progresso_edge_worker,
+            daemon=True,
+        )
+        thread.start()
+
+    def _testar_progresso_edge_tracker_worker(self):
+        time.sleep(0.7)
+        resultado = {"erro": None, "tracker": None}
+        try:
+            resultado["tracker"] = detectar_estado_tracker_edge(
+                self.config,
+                status_callback=self.status_com_log,
+            )
+        except Exception as exc:
+            resultado["erro"] = exc
+
+        self.root.after(0, lambda: self._finalizar_teste_progresso_edge_tracker(resultado))
+
+    def _testar_ver_tudo_e_progresso_edge_worker(self):
+        time.sleep(0.7)
+        resultado = {"erro": None, "tracker": None}
+        try:
+            resultado["tracker"] = abrir_ver_tudo_e_detectar_tracker_edge(
+                self.config,
+                stop_event=self.stop_automation,
+                status_callback=self.status_com_log,
+                safety_callback=self.confirmar_intervencao_mouse,
+            )
+        except Exception as exc:
+            resultado["erro"] = exc
+
+        self.root.after(0, lambda: self._finalizar_teste_progresso_edge_tracker(resultado))
+
+    def _finalizar_teste_progresso_edge_tracker(self, resultado):
+        tracker = resultado.get("tracker")
+        mover_erro = None
+        if resultado["erro"] is None and tracker is not None:
+            mover_erro = self.mover_mouse_para_resultado(tracker)
+
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+        if resultado["erro"] is not None:
+            self.update_status("Erro ao testar tracker Edge.", "red")
+            messagebox.showerror(
+                "Erro",
+                f"Nao foi possivel testar o tracker Edge: {resultado['erro']}",
+                parent=self.root,
+            )
+            return
+
+        if tracker is None:
+            self.update_status("Nao consegui identificar o progresso do Edge.", "orange")
+            messagebox.showwarning(
+                "Tracker Edge",
+                "Nao consegui identificar o estado do tracker.\n\n"
+                "Treine os estados 0/30, 5/30 ... 30/30 ou abra o menu Rewards antes de testar.",
+                parent=self.root,
+            )
+            return
+
+        status = "Completo" if tracker["completo"] else "Incompleto"
+        linha_mouse = "O mouse foi movido para a deteccao."
+        if mover_erro is not None:
+            linha_mouse = f"Falha ao mover o mouse: {mover_erro}"
+        self.update_status(
+            f"Tracker Edge: {tracker['minutos']}/{tracker['total']} min, faltam {tracker['faltam']} min.",
+            "green" if tracker["completo"] else "blue",
+        )
+        messagebox.showinfo(
+            "Tracker Edge",
+            f"Status: {status}\n"
+            f"Contabilizado: {tracker['minutos']} de {tracker['total']} min\n"
+            f"Faltam: {tracker['faltam']} min\n"
+            f"Score: {tracker['score']:.2f}\n\n"
+            f"{linha_mouse}",
+            parent=self.root,
+        )
+
     def diagnosticar_mouse_deteccao(self):
         if not self.save_config():
             return
@@ -1445,6 +2042,7 @@ class AutoRewardsApp:
                     confianca=self.config["deteccao_imagem"]["confianca"],
                     regiao=self.config["deteccao_imagem"].get("regiao"),
                     max_resultados=20,
+                    parar_score=self.config["deteccao_imagem"].get("score_forte", 0.95),
                 )
 
             melhor = detectados[0] if detectados else None
@@ -1537,6 +2135,7 @@ class AutoRewardsApp:
                 confianca=deteccao["confianca"],
                 regiao=deteccao.get("regiao"),
                 max_resultados=20,
+                parar_score=deteccao.get("score_forte", 0.95),
             )
         except FileNotFoundError:
             erro = (
@@ -1625,6 +2224,7 @@ class AutoRewardsApp:
                 confianca=deteccao["confianca"],
                 regiao=deteccao.get("regiao"),
                 max_resultados=20,
+                parar_score=deteccao.get("score_forte", 0.95),
             )
         except FileNotFoundError:
             erro = (
@@ -1733,9 +2333,8 @@ class AutoRewardsApp:
                 self.movimento_mouse_var, "Movimento mouse"
             )
             self.config.setdefault("automacao", {})
-            self.config["automacao"]["usar_versao_fixa"] = (
-                self.usar_versao_fixa_var.get()
-            )
+            modo_por_imagem = self.modo_conjunto_var.get() == "imagem"
+            self.config["automacao"]["usar_versao_fixa"] = not modo_por_imagem
 
             for nome, (x_var, y_var) in self.coord_vars.items():
                 self.config["coordenadas"][nome]["x"] = self.parse_int_or_none(
@@ -1751,8 +2350,8 @@ class AutoRewardsApp:
                 )
 
             deteccao = self.config["deteccao_imagem"]
-            deteccao["ativada"] = self.deteccao_ativada_var.get()
-            deteccao["usar_fallback_coordenadas"] = self.deteccao_fallback_var.get()
+            deteccao["ativada"] = modo_por_imagem
+            deteccao["usar_fallback_coordenadas"] = not modo_por_imagem
             deteccao["template_plus_10"] = (
                 self.template_plus_10_var.get().strip() or "assets/plus_10.png"
             )
@@ -1770,6 +2369,9 @@ class AutoRewardsApp:
             )
             deteccao["confianca"] = self.parse_float(
                 self.confianca_plus_10_var, "Confianca +10"
+            )
+            deteccao["score_forte"] = self.parse_float(
+                self.score_forte_var, "Match forte"
             )
             deteccao["max_cards"] = self.parse_int(self.max_cards_var, "Max cards")
             deteccao["max_scrolls"] = self.parse_int(self.max_scrolls_var, "Max scrolls")
@@ -1789,6 +2391,8 @@ class AutoRewardsApp:
 
             if not 0 < deteccao["confianca"] <= 1:
                 raise ValueError("Confianca +10 precisa ficar entre 0 e 1.")
+            if not 0 < deteccao["score_forte"] <= 1:
+                raise ValueError("Match forte precisa ficar entre 0 e 1.")
             if deteccao["max_cards"] < 0:
                 raise ValueError("Max cards nao pode ser negativo.")
             if deteccao["max_scrolls"] < 0:
@@ -1828,6 +2432,53 @@ class AutoRewardsApp:
                     "Palavras por busca: o minimo nao pode ser maior que o maximo."
                 )
             pesquisas["palavras_por_busca"] = {"min": palavras_min, "max": palavras_max}
+
+            edge_tempo = self.config.setdefault("edge_tempo", {})
+            edge_tempo["executar"] = self.executar_edge_tempo_var.get()
+            edge_tempo["url_video"] = self.edge_video_url_var.get().strip()
+            edge_tempo["primeira_espera_minutos"] = self.parse_float(
+                self.edge_primeira_espera_var, "Primeira espera Edge"
+            )
+            edge_tempo["margem_extra_minutos"] = self.parse_float(
+                self.edge_margem_extra_var, "Margem extra Edge"
+            )
+            edge_tempo["max_tentativas"] = self.parse_int(
+                self.edge_max_tentativas_var, "Max verificacoes Edge"
+            )
+            edge_tempo.setdefault("delay_apos_abrir_video", 8.0)
+            edge_tempo.setdefault("delay_apos_reabrir_edge", 2.0)
+            if edge_tempo["executar"] and not edge_tempo["url_video"]:
+                raise ValueError("Informe a URL do video para o tempo no Edge.")
+            if edge_tempo["primeira_espera_minutos"] <= 0:
+                raise ValueError("Primeira espera Edge precisa ser maior que zero.")
+            if edge_tempo["margem_extra_minutos"] < 0:
+                raise ValueError("Margem extra Edge nao pode ser negativa.")
+            if edge_tempo["max_tentativas"] <= 0:
+                raise ValueError("Max verificacoes Edge precisa ser maior que zero.")
+
+            brotato = self.config.setdefault("brotato", {})
+            brotato["executar"] = self.executar_brotato_var.get()
+            brotato["app_busca"] = self.brotato_app_busca_var.get().strip() or "Brotato"
+            brotato["tempo_minutos"] = self.parse_float(
+                self.brotato_tempo_minutos_var, "Timer Brotato"
+            )
+            brotato["delay_apos_enter"] = self.parse_float(
+                self.brotato_delay_apos_enter_var, "Delay apos abrir Brotato"
+            )
+            brotato["menu_timeout_segundos"] = self.parse_float(
+                self.brotato_menu_timeout_var, "Timeout menu Brotato"
+            )
+            brotato["fechar_timeout_segundos"] = self.parse_float(
+                self.brotato_fechar_timeout_var, "Timeout fechar Brotato"
+            )
+            if brotato["tempo_minutos"] <= 0:
+                raise ValueError("Timer Brotato precisa ser maior que zero.")
+            if brotato["delay_apos_enter"] < 0:
+                raise ValueError("Delay apos abrir Brotato nao pode ser negativo.")
+            if brotato["menu_timeout_segundos"] <= 0:
+                raise ValueError("Timeout menu Brotato precisa ser maior que zero.")
+            if brotato["fechar_timeout_segundos"] <= 0:
+                raise ValueError("Timeout fechar Brotato precisa ser maior que zero.")
 
             self.salvar_json(self.config)
             self.update_status("Configuracoes salvas com sucesso.", "green")
@@ -1907,22 +2558,98 @@ class AutoRewardsApp:
 
         self.status_com_log("Usuario cancelou apos pausa de seguranca.", "orange")
         self.stop_automation.set()
+        self.pause_automation.clear()
         return False
 
     def set_running(self, running):
-        state = "disabled" if running else "normal"
-        self.root.after(0, lambda: self.start_button.config(state=state))
-        self.root.after(0, lambda: self.conjunto_button.config(state=state))
+        self.automation_running = running
+        if not running:
+            self.pause_automation.clear()
+
+        def aplicar():
+            principal_state = "disabled" if running else "normal"
+            pause_state = "normal" if running and not self.pause_automation.is_set() else "disabled"
+            resume_state = "normal" if running and self.pause_automation.is_set() else "disabled"
+            cancel_state = "normal" if running else "disabled"
+
+            self.start_button.config(state=principal_state)
+            self.conjunto_button.config(state=principal_state)
+            self.pause_button.config(state=pause_state)
+            self.resume_button.config(state=resume_state)
+            self.cancel_button.config(state=cancel_state)
+
+        self.root.after(0, aplicar)
+
+    def atualizar_botoes_pausa(self):
+        self.set_running(self.automation_running)
+
+    def trazer_app_para_frente(self):
+        self.root.after(
+            0,
+            lambda: (
+                self.root.deiconify(),
+                self.root.lift(),
+                self.root.focus_force(),
+                self.notebook.select(self.exec_tab),
+            ),
+        )
+
+    def pausar_automacao(self):
+        if not self.automation_running or self.stop_automation.is_set():
+            return
+
+        if self.pause_automation.is_set():
+            return
+
+        self.pause_automation.set()
+        self.status_com_log("Automacao pausada. Clique em Resumir para continuar.", "orange")
+        self.trazer_app_para_frente()
+        self.atualizar_botoes_pausa()
+
+    def resumir_automacao(self):
+        if not self.automation_running:
+            return
+
+        self.pause_automation.clear()
+        self.status_com_log("Automacao retomada.", "blue")
+        self.atualizar_botoes_pausa()
+
+    def cancelar_automacao(self):
+        if not self.automation_running:
+            return
+
+        self.stop_automation.set()
+        self.pause_automation.clear()
+        self.status_com_log("Cancelando automacao...", "orange")
+        self.atualizar_botoes_pausa()
+
+    def esperar_se_pausado(self):
+        if not self.pause_automation.is_set():
+            return not self.stop_automation.is_set()
+
+        while self.pause_automation.is_set():
+            if self.stop_automation.is_set():
+                return False
+            time.sleep(0.1)
+
+        return not self.stop_automation.is_set()
 
     def start_fluxo_completo_thread(self):
         if not self.save_config():
             return
 
         pesquisas = self.config["pesquisas"]
-        if not pesquisas["executar_conjunto_diario"] and not pesquisas.get("executar_pesquisas", True):
+        executar_edge_tempo = self.config.get("edge_tempo", {}).get("executar", False)
+        executar_brotato = self.config.get("brotato", {}).get("executar", False)
+        if (
+            not pesquisas["executar_conjunto_diario"]
+            and not pesquisas.get("executar_pesquisas", True)
+            and not executar_edge_tempo
+            and not executar_brotato
+        ):
             messagebox.showwarning(
                 "Nenhuma funcao selecionada",
-                "Selecione pelo menos uma funcao primaria: conjunto diario ou pesquisas.",
+                "Selecione pelo menos uma funcao primaria: conjunto diario, pesquisas, tempo no Edge ou Brotato.",
                 parent=self.root,
             )
             return
@@ -1931,7 +2658,10 @@ class AutoRewardsApp:
             "Fluxo selecionado",
             abrir_cmd=self.config.get("debug", {}).get("abrir_cmd", True),
         )
+        limpar_cache_execucao(self.config)
         self.stop_automation.clear()
+        self.pause_automation.clear()
+        self.stop_automation.pause_event = self.pause_automation
         self.set_running(True)
         self.status_com_log("Iniciando fluxo selecionado...")
         thread = threading.Thread(target=self.fluxo_completo, daemon=True)
@@ -1945,7 +2675,10 @@ class AutoRewardsApp:
             "Config conjunto diario",
             abrir_cmd=self.config.get("debug", {}).get("abrir_cmd", True),
         )
+        limpar_cache_execucao(self.config)
         self.stop_automation.clear()
+        self.pause_automation.clear()
+        self.stop_automation.pause_event = self.pause_automation
         self.set_running(True)
         self.status_com_log("Iniciando somente o conjunto diario...")
         thread = threading.Thread(target=self.fluxo_conjunto_diario, daemon=True)
@@ -1985,6 +2718,10 @@ class AutoRewardsApp:
             pa.PAUSE = 0.25
             executar_conjunto = self.config["pesquisas"]["executar_conjunto_diario"]
             executar_pesquisas = self.config["pesquisas"].get("executar_pesquisas", True)
+            executar_edge_tempo = self.config.get("edge_tempo", {}).get("executar", False)
+            executar_brotato = self.config.get("brotato", {}).get("executar", False)
+            edge_aberto = False
+            self.brotato_aberto = False
 
             if executar_conjunto:
                 coordenadas = carregar_coordenadas(self.config)
@@ -2001,6 +2738,7 @@ class AutoRewardsApp:
                     self.status_com_log("Automacao interrompida.", "orange")
                     return
 
+                edge_aberto = True
                 if executar_pesquisas:
                     self.status_com_log("Conjunto diario concluido. Iniciando pesquisas...")
                     if not self.sleep_intervalo(
@@ -2021,9 +2759,30 @@ class AutoRewardsApp:
                     ):
                         self.status_com_log("Automacao interrompida ao abrir Edge.", "orange")
                         return
-                self.automation_search_logic()
-            elif not executar_conjunto:
+                    edge_aberto = True
+                if not self.automation_search_logic():
+                    return
+                edge_aberto = True
+
+            if executar_brotato and executar_edge_tempo:
+                if not self.executar_brotato_logic(com_timer=False):
+                    return
+                edge_aberto = False
+
+            if executar_edge_tempo:
+                if not self.executar_tempo_edge_logic(
+                    edge_ja_aberto=edge_aberto,
+                    fechar_brotato_antes_verificar=executar_brotato,
+                ):
+                    return
+            elif executar_brotato:
+                if not self.executar_brotato_logic(com_timer=True):
+                    return
+
+            if not executar_conjunto and not executar_pesquisas and not executar_edge_tempo and not executar_brotato:
                 self.status_com_log("Nenhuma funcao primaria selecionada.", "orange")
+            else:
+                self.status_com_log("Fluxo selecionado concluido.", "green")
         except SystemExit as exc:
             self.status_com_log(str(exc), "red")
         except Exception as exc:
@@ -2039,7 +2798,7 @@ class AutoRewardsApp:
         self.log_execucao(f"Iniciando sessao de pesquisas: {num_searches} busca(s).")
 
         for i in range(1, num_searches + 1):
-            if self.stop_automation.is_set():
+            if not self.esperar_se_pausado():
                 self.status_com_log("Automacao interrompida pelo usuario.", "orange")
                 break
 
@@ -2055,7 +2814,7 @@ class AutoRewardsApp:
             self.log_execucao(f"Texto da busca {i}: {sentence}")
 
             self.focar_barra_busca(pesquisas)
-            if self.stop_automation.is_set():
+            if not self.esperar_se_pausado():
                 self.status_com_log("Automacao interrompida pelo usuario.", "orange")
                 break
 
@@ -2065,22 +2824,31 @@ class AutoRewardsApp:
             self.log_execucao("Digitando busca letra por letra.")
             self.write_text_letter_by_letter(sentence)
 
-            if self.stop_automation.is_set():
+            if not self.esperar_se_pausado():
                 self.status_com_log("Automacao interrompida pelo usuario.", "orange")
                 break
 
             self.log_execucao("Pressionando Enter para pesquisar.")
+            if not self.esperar_se_pausado():
+                self.status_com_log("Automacao interrompida pelo usuario.", "orange")
+                break
             pa.press("enter")
 
             delay = random.uniform(delay_buscas["min"], delay_buscas["max"])
             self.log_execucao(f"Aguardando {delay:.2f}s ate a proxima busca.")
             if not self.sleep_interruptivel(delay):
                 self.status_com_log("Automacao interrompida pelo usuario.", "orange")
-                break
+                return False
         else:
-            self.status_com_log("Fluxo completo concluido com sucesso.", "green")
+            self.status_com_log("Sessao de pesquisas concluida.", "green")
+            return True
+
+        return False
 
     def focar_barra_busca(self, pesquisas):
+        if not self.esperar_se_pausado():
+            return
+
         if not self.config.get("automacao", {}).get("usar_versao_fixa", True):
             self.log_execucao("Nova versao ativa: focando barra do Edge com Ctrl+L.")
             pa.hotkey("ctrl", "l")
@@ -2095,6 +2863,319 @@ class AutoRewardsApp:
             clicar_mouse(pesquisas["desktop_coords"]["x"], pesquisas["desktop_coords"]["y"])
 
         self.sleep_interruptivel(0.5)
+
+    def abrir_brotato(self):
+        brotato = self.config.get("brotato", {})
+        app_busca = brotato.get("app_busca", "Brotato").strip() or "Brotato"
+        delay = float(brotato.get("delay_apos_enter", 10))
+
+        if not self.esperar_se_pausado():
+            return False
+
+        self.status_com_log(f"Abrindo Brotato pelo menu iniciar: {app_busca}")
+        pa.press("win")
+        if not self.sleep_interruptivel(0.5):
+            return False
+        pa.write(app_busca, interval=0.03)
+        if not self.sleep_interruptivel(0.2):
+            return False
+        pa.press("enter")
+        self.log_execucao(f"Aguardando Brotato iniciar por {delay:.1f}s.")
+        return self.sleep_interruptivel(delay)
+
+    def aguardar_brotato_menu(self):
+        brotato = self.config.get("brotato", {})
+        timeout = float(brotato.get("menu_timeout_segundos", 120))
+        if not listar_templates_alvo_visual(self.config, "brotato_gamertag"):
+            self.status_com_log(
+                "Nenhum template treinado para Brotato Gamer Tag. Treine esse alvo antes de executar.",
+                "red",
+            )
+            return False
+
+        restante = timeout
+        tentativa = 0
+        while restante > 0:
+            if not self.esperar_se_pausado():
+                return False
+
+            tentativa += 1
+            self.status_com_log(
+                f"Procurando Gamer Tag do Brotato ({restante:.0f}s restantes)..."
+            )
+            inicio = time.time()
+            alvo = localizar_alvo_visual(
+                self.config,
+                "brotato_gamertag",
+                status_callback=self.status_com_log if tentativa == 1 else None,
+            )
+            if alvo is not None:
+                self.status_com_log(
+                    f"Brotato no menu detectado: x={alvo['x']}, y={alvo['y']}, score={alvo['score']:.2f}.",
+                    "green",
+                )
+                self.brotato_aberto = True
+                return True
+
+            restante -= time.time() - inicio
+            pausa = min(2.0, restante)
+            if pausa > 0 and not self.sleep_interruptivel(pausa):
+                return False
+            restante -= pausa
+
+        self.status_com_log(
+            "Nao consegui detectar o menu do Brotato dentro do timeout.",
+            "red",
+        )
+        return False
+
+    def focar_brotato_pela_barra(self):
+        brotato = self.config.get("brotato", {})
+        timeout = float(brotato.get("fechar_timeout_segundos", 20))
+        if not listar_templates_alvo_visual(self.config, "brotato_icone_barra"):
+            self.status_com_log(
+                "Nenhum template treinado para o icone do Brotato na barra. Treine esse alvo antes de fechar o jogo.",
+                "red",
+            )
+            return False
+
+        restante = timeout
+        while restante > 0:
+            if not self.esperar_se_pausado():
+                return False
+
+            inicio = time.time()
+            self.status_com_log("Procurando icone do Brotato na barra de tarefas...")
+            if clicar_alvo_visual(
+                self.config,
+                "brotato_icone_barra",
+                stop_event=self.stop_automation,
+                status_callback=self.status_com_log,
+                safety_callback=self.confirmar_intervencao_mouse,
+            ):
+                return self.sleep_interruptivel(1.0)
+
+            restante -= time.time() - inicio
+            pausa = min(1.0, restante)
+            if pausa > 0 and not self.sleep_interruptivel(pausa):
+                return False
+            restante -= pausa
+
+        self.status_com_log("Nao consegui focar o Brotato pelo icone da barra.", "red")
+        return False
+
+    def fechar_brotato(self):
+        if not self.brotato_aberto:
+            self.log_execucao("Brotato nao esta marcado como aberto. Nada para fechar.")
+            return True
+
+        self.status_com_log("Fechando Brotato com Alt+F4...")
+        if not self.focar_brotato_pela_barra():
+            return False
+        if not self.esperar_se_pausado():
+            return False
+        pa.hotkey("alt", "f4")
+        if not self.sleep_interruptivel(2.0):
+            return False
+        self.brotato_aberto = False
+        self.status_com_log("Brotato fechado.", "green")
+        return True
+
+    def garantir_brotato_fechado(self):
+        if not self.brotato_aberto:
+            return True
+
+        self.status_com_log("Brotato aberto antes da verificacao. Vou fechar primeiro.")
+        return self.fechar_brotato()
+
+    def executar_brotato_logic(self, com_timer=True):
+        if not self.abrir_brotato():
+            return False
+        if not self.aguardar_brotato_menu():
+            return False
+
+        if not com_timer:
+            self.status_com_log("Brotato aberto para rodar junto com o Tempo no Edge.")
+            return True
+
+        minutos = float(self.config.get("brotato", {}).get("tempo_minutos", 17))
+        self.status_com_log(f"Brotato ficara aberto por {minutos:.1f} minuto(s).")
+        if not self.sleep_minutos_com_log(minutos, "Timer Brotato"):
+            self.status_com_log("Automacao interrompida durante timer do Brotato.", "orange")
+            return False
+
+        return self.fechar_brotato()
+
+    def executar_tempo_edge_logic(self, edge_ja_aberto=False, fechar_brotato_antes_verificar=False):
+        edge_tempo = self.config.get("edge_tempo", {})
+        url_video = edge_tempo.get("url_video", "").strip()
+        if not url_video:
+            self.status_com_log("Tempo Edge ativado, mas a URL do video esta vazia.", "red")
+            return False
+
+        primeira_espera = float(edge_tempo.get("primeira_espera_minutos", 36))
+        margem_extra = float(edge_tempo.get("margem_extra_minutos", 1))
+        max_tentativas = int(edge_tempo.get("max_tentativas", 3))
+        espera_atual = primeira_espera
+
+        if not edge_ja_aberto:
+            self.status_com_log("Abrindo Edge para iniciar tempo no navegador...")
+            if not abrir_edge(
+                self.config,
+                stop_event=self.stop_automation,
+                status_callback=self.status_com_log,
+            ):
+                self.status_com_log("Automacao interrompida ao abrir Edge.", "orange")
+                return False
+
+        for tentativa in range(1, max_tentativas + 1):
+            self.status_com_log(
+                f"Tempo Edge: tentativa {tentativa}/{max_tentativas}. "
+                f"Video ficara aberto por {espera_atual:.1f} minuto(s)."
+            )
+            if not self.abrir_video_no_edge(url_video):
+                return False
+
+            if not self.sleep_minutos_com_log(
+                espera_atual,
+                f"Aguardando tempo no Edge ({tentativa}/{max_tentativas})",
+            ):
+                self.status_com_log("Automacao interrompida durante espera do Edge.", "orange")
+                return False
+
+            if fechar_brotato_antes_verificar:
+                if not self.garantir_brotato_fechado():
+                    return False
+                self.status_com_log("Refocando Edge antes de fechar e verificar o Rewards...")
+                if not abrir_edge(
+                    self.config,
+                    stop_event=self.stop_automation,
+                    status_callback=self.status_com_log,
+                ):
+                    return False
+
+            tracker = self.reabrir_edge_e_verificar_tracker()
+            if tracker is None:
+                self.status_com_log(
+                    "Nao consegui verificar o tempo do Edge. Treine os estados do tracker e tente novamente.",
+                    "red",
+                )
+                return False
+
+            if tracker["completo"]:
+                self.status_com_log(
+                    f"Task Navegar com Edge completa: {tracker['minutos']}/{tracker['total']} min.",
+                    "green",
+                )
+                return True
+
+            faltam = int(tracker["faltam"])
+            if tentativa >= max_tentativas:
+                self.status_com_log(
+                    f"Tempo Edge ainda incompleto: faltam {faltam} min e o limite de verificacoes foi atingido.",
+                    "orange",
+                )
+                return False
+
+            espera_atual = max(1.0, faltam + margem_extra)
+            self.status_com_log(
+                f"Tempo Edge incompleto: {tracker['minutos']}/{tracker['total']} min. "
+                f"Nova espera: {espera_atual:.1f} minuto(s).",
+                "orange",
+            )
+
+        return False
+
+    def abrir_video_no_edge(self, url_video):
+        if not self.esperar_se_pausado():
+            return False
+
+        self.status_com_log(f"Abrindo video no Edge: {url_video}")
+        pa.hotkey("ctrl", "l")
+        if not self.sleep_interruptivel(0.4):
+            return False
+        self.inserir_texto(url_video)
+        pa.press("enter")
+
+        delay = float(self.config.get("edge_tempo", {}).get("delay_apos_abrir_video", 8.0))
+        self.log_execucao(f"Aguardando video carregar por {delay:.1f}s.")
+        return self.sleep_interruptivel(delay)
+
+    def inserir_texto(self, texto):
+        try:
+            import pyperclip
+
+            pyperclip.copy(texto)
+            pa.hotkey("ctrl", "v")
+        except Exception:
+            pa.write(texto, interval=0.01)
+
+    def reabrir_edge_e_verificar_tracker(self):
+        if not self.fechar_edge_ativo():
+            return None
+
+        self.status_com_log("Reabrindo Edge para verificar task Navegar com Edge...")
+        if not abrir_edge(
+            self.config,
+            stop_event=self.stop_automation,
+            status_callback=self.status_com_log,
+        ):
+            return None
+
+        delay = float(self.config.get("edge_tempo", {}).get("delay_apos_reabrir_edge", 2.0))
+        if not self.sleep_interruptivel(delay):
+            return None
+
+        coordenadas = carregar_coordenadas(self.config)
+        self.status_com_log("Abrindo menu do Microsoft Rewards para checar progresso...")
+        if not abrir_extensao_rewards(
+            self.config,
+            coordenadas,
+            stop_event=self.stop_automation,
+            status_callback=self.status_com_log,
+            safety_callback=self.confirmar_intervencao_mouse,
+        ):
+            return None
+
+        if not self.sleep_intervalo(self.config["tempos"]["apos_icone_extensao"]):
+            return None
+
+        return abrir_ver_tudo_e_detectar_tracker_edge(
+            self.config,
+            stop_event=self.stop_automation,
+            status_callback=self.status_com_log,
+            safety_callback=self.confirmar_intervencao_mouse,
+        )
+
+    def fechar_edge_ativo(self):
+        if not self.esperar_se_pausado():
+            return False
+
+        self.status_com_log("Fechando janela atual do Edge para forcar atualizacao do Rewards...")
+        pa.hotkey("alt", "f4")
+        return self.sleep_interruptivel(2.0)
+
+    def sleep_minutos_com_log(self, minutos, label):
+        restante = max(0.0, float(minutos) * 60)
+        proximo_log = 0.0
+
+        while restante > 0:
+            if not self.esperar_se_pausado():
+                return False
+
+            if proximo_log <= 0:
+                restantes_min = restante / 60
+                self.status_com_log(f"{label}: faltam {restantes_min:.1f} minuto(s).")
+                proximo_log = 60.0
+
+            pausa = min(1.0, restante)
+            inicio = time.time()
+            time.sleep(pausa)
+            decorrido = time.time() - inicio
+            restante -= decorrido
+            proximo_log -= decorrido
+
+        return True
 
     def get_random_words(self):
         intervalo = self.config["pesquisas"]["palavras_por_busca"]
@@ -2118,18 +3199,22 @@ class AutoRewardsApp:
 
     def write_text_letter_by_letter(self, text):
         for letter in text:
-            if self.stop_automation.is_set():
+            if not self.esperar_se_pausado():
                 break
 
             pa.write(letter)
-            time.sleep(random.uniform(0.01, 0.03))
+            self.sleep_interruptivel(random.uniform(0.01, 0.03))
 
     def sleep_interruptivel(self, segundos):
-        fim = time.time() + segundos
-        while time.time() < fim:
-            if self.stop_automation.is_set():
+        restante = float(segundos)
+        while restante > 0:
+            if not self.esperar_se_pausado():
                 return False
-            time.sleep(min(0.1, fim - time.time()))
+
+            pausa = min(0.1, restante)
+            inicio = time.time()
+            time.sleep(pausa)
+            restante -= time.time() - inicio
         return True
 
     def sleep_intervalo(self, intervalo):
@@ -2138,7 +3223,7 @@ class AutoRewardsApp:
 
     def on_press(self, key):
         if key == keyboard.Key.esc:
-            self.stop_automation.set()
+            self.pausar_automacao()
 
     def start_keyboard_listener(self):
         listener = keyboard.Listener(on_press=self.on_press)

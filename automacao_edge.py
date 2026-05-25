@@ -55,16 +55,38 @@ def obter_coordenada(coordenadas, nome):
     return coordenadas[nome]["x"], coordenadas[nome]["y"]
 
 
+def esperar_se_pausado(stop_event):
+    pause_event = getattr(stop_event, "pause_event", None)
+    if pause_event is None:
+        return True
+
+    while pause_event.is_set():
+        if stop_event is not None and stop_event.is_set():
+            return False
+        time.sleep(0.1)
+
+    return stop_event is None or not stop_event.is_set()
+
+
 def deve_parar(stop_event):
-    return stop_event is not None and stop_event.is_set()
+    if stop_event is None:
+        return False
+
+    if not esperar_se_pausado(stop_event):
+        return True
+
+    return stop_event.is_set()
 
 
 def dormir(segundos, stop_event=None):
-    fim = time.time() + segundos
-    while time.time() < fim:
+    restante = float(segundos)
+    while restante > 0:
         if deve_parar(stop_event):
             return False
-        time.sleep(min(0.1, fim - time.time()))
+        pausa = min(0.1, restante)
+        inicio = time.time()
+        time.sleep(pausa)
+        restante -= time.time() - inicio
     return True
 
 
@@ -257,6 +279,18 @@ def usar_versao_fixa(config):
     return bool(config.get("automacao", {}).get("usar_versao_fixa", True))
 
 
+def limpar_cache_execucao(config):
+    config["_runtime_cache"] = {
+        "alvos_visuais": {},
+    }
+
+
+def obter_cache_execucao(config):
+    cache = config.setdefault("_runtime_cache", {})
+    cache.setdefault("alvos_visuais", {})
+    return cache
+
+
 def mouse_dentro_da_margem(atual_x, atual_y, alvo_x, alvo_y, margem):
     return abs(atual_x - alvo_x) <= margem and abs(atual_y - alvo_y) <= margem
 
@@ -272,6 +306,9 @@ def garantir_mouse_no_alvo(
     estado=None,
     recuperar_callback=None,
 ):
+    if deve_parar(stop_event):
+        return False
+
     seguranca = obter_config_seguranca(config)
     if not seguranca.get("ativada", True) or safety_callback is None:
         return True
@@ -370,6 +407,9 @@ def obter_config_alvo_visual(config, nome):
             "template": "assets/alvos/icone_extensao.png",
             "treino_dir": "assets/treino_icone_extensao",
             "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 70,
+            "capture_height": 50,
             "click_offset_x": 0,
             "click_offset_y": 0,
             "regiao": {"x": None, "y": None, "width": None, "height": None},
@@ -378,6 +418,64 @@ def obter_config_alvo_visual(config, nome):
             "template": "assets/alvos/voltar.png",
             "treino_dir": "assets/treino_voltar",
             "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 70,
+            "capture_height": 50,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "ver_tudo": {
+            "template": "assets/alvos/ver_tudo.png",
+            "treino_dir": "assets/treino_ver_tudo",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 190,
+            "capture_height": 55,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "exibir_painel": {
+            "template": "assets/alvos/exibir_painel.png",
+            "treino_dir": "assets/treino_exibir_painel",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 160,
+            "capture_height": 42,
+            "click_offset_x": 0,
+            "click_offset_y": 70,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "tracker_edge_tempo": {
+            "template": "assets/alvos/tracker_edge_tempo.png",
+            "treino_dir": "assets/treino_tracker_edge_tempo",
+            "confianca": 0.78,
+            "score_forte": 0.92,
+            "capture_width": 280,
+            "capture_height": 70,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "brotato_gamertag": {
+            "template": "assets/alvos/brotato_gamertag.png",
+            "treino_dir": "assets/treino_brotato_gamertag",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 80,
+            "capture_height": 32,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "brotato_icone_barra": {
+            "template": "assets/alvos/brotato_icone_barra.png",
+            "treino_dir": "assets/treino_brotato_icone_barra",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 70,
+            "capture_height": 60,
             "click_offset_x": 0,
             "click_offset_y": 0,
             "regiao": {"x": None, "y": None, "width": None, "height": None},
@@ -413,6 +511,118 @@ def listar_templates_alvo_visual(config, nome):
     return templates
 
 
+def obter_config_edge_tracker(config):
+    return config.get(
+        "edge_tracker",
+        {
+            "treino_dir": "assets/treino_edge_tracker_estados",
+            "estados_minutos": [0, 5, 10, 15, 20, 25, 30],
+            "total_minutos": 30,
+            "confianca": 0.82,
+            "capture_width": 130,
+            "capture_height": 42,
+        },
+    )
+
+
+def listar_templates_tracker_estado(config, minutos):
+    tracker = obter_config_edge_tracker(config)
+    base_dir = resolver_caminho(tracker.get("treino_dir", "assets/treino_edge_tracker_estados"))
+    estado_dir = base_dir / str(int(minutos))
+    if not estado_dir.exists():
+        return []
+
+    return sorted(estado_dir.glob("*.png"))
+
+
+def detectar_estado_tracker_edge(config, status_callback=None):
+    tracker = obter_config_edge_tracker(config)
+    estados = [int(valor) for valor in tracker.get("estados_minutos", [0, 5, 10, 15, 20, 25, 30])]
+    templates = []
+    template_para_estado = {}
+
+    for minutos in estados:
+        for template_path in listar_templates_tracker_estado(config, minutos):
+            templates.append(template_path)
+            template_para_estado[str(template_path)] = minutos
+
+    if not templates:
+        avisar(
+            status_callback,
+            "Nenhum template de estado do tracker Edge encontrado. Treine os estados 0/30, 5/30 ... 30/30.",
+            "orange",
+        )
+        return None
+
+    regiao = obter_regiao_painel_rewards(config, status_callback)
+    confianca = float(tracker.get("confianca", 0.82))
+    avisar(
+        status_callback,
+        "Classificando tempo do Edge com "
+        f"{len(templates)} template(s), confianca {confianca:.2f}, sem parada por match forte.",
+    )
+    resultados = localizar_templates(
+        templates,
+        confianca=confianca,
+        regiao=regiao,
+        max_resultados=50,
+        parar_score=None,
+    )
+    if not resultados:
+        avisar(status_callback, "Nao consegui identificar o estado do tracker Edge.", "orange")
+        return None
+
+    melhor = max(resultados, key=lambda item: item["score"])
+    minutos = template_para_estado.get(melhor.get("template"))
+    if minutos is None:
+        minutos = 0
+
+    total = int(tracker.get("total_minutos", 30))
+    faltam = max(0, total - int(minutos))
+    completo = int(minutos) >= total
+    avisar(
+        status_callback,
+        "Tracker Edge identificado: "
+        f"{minutos}/{total} min, faltam {faltam} min, score={melhor['score']:.2f}.",
+        "green" if completo else "blue",
+    )
+    return {
+        "minutos": int(minutos),
+        "total": total,
+        "faltam": faltam,
+        "completo": completo,
+        "score": float(melhor["score"]),
+        "x": int(melhor["x"]),
+        "y": int(melhor["y"]),
+        "template": melhor.get("template"),
+    }
+
+
+def abrir_ver_tudo_e_detectar_tracker_edge(
+    config,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
+    if deve_parar(stop_event):
+        return None
+
+    avisar(status_callback, "Procurando botao 'Ver tudo' para abrir detalhes do Rewards.")
+    if not clicar_alvo_visual(
+        config,
+        "ver_tudo",
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    ):
+        return None
+
+    if not dormir(0.8, stop_event):
+        return None
+
+    return detectar_estado_tracker_edge(config, status_callback)
+
+
 def localizar_alvo_visual(config, nome, status_callback=None, regiao=None):
     alvo_config = obter_config_alvo_visual(config, nome)
     templates = listar_templates_alvo_visual(config, nome)
@@ -426,15 +636,18 @@ def localizar_alvo_visual(config, nome, status_callback=None, regiao=None):
 
     regiao_config = regiao or normalizar_regiao_manual(alvo_config.get("regiao"))
     confianca = float(alvo_config.get("confianca", 0.82))
+    score_forte = alvo_config.get("score_forte", 0.95)
     avisar(
         status_callback,
-        f"Rodando deteccao do alvo '{nome}' com {len(templates)} template(s), confianca {confianca:.2f}.",
+        f"Rodando deteccao do alvo '{nome}' com {len(templates)} template(s), "
+        f"confianca {confianca:.2f}, match forte {float(score_forte):.2f}.",
     )
     resultados = localizar_templates(
         templates,
         confianca=confianca,
         regiao=regiao_config,
         max_resultados=10,
+        parar_score=score_forte,
     )
     avisar(status_callback, f"Alvo '{nome}' retornou {len(resultados)} resultado(s).")
     if not resultados:
@@ -459,13 +672,33 @@ def clicar_alvo_visual(
     if deve_parar(stop_event):
         return False
 
-    alvo = localizar_alvo_visual(config, nome, status_callback, regiao=regiao)
-    if alvo is None:
-        return False
-
     alvo_config = obter_config_alvo_visual(config, nome)
-    x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
-    y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
+    cache_alvos = obter_cache_execucao(config)["alvos_visuais"]
+    cache = cache_alvos.get(nome)
+    if cache is not None:
+        x = int(cache["x"])
+        y = int(cache["y"])
+        avisar(
+            status_callback,
+            f"Usando coordenada em cache para alvo visual '{nome}': x={x}, y={y}.",
+        )
+    else:
+        alvo = localizar_alvo_visual(config, nome, status_callback, regiao=regiao)
+        if alvo is None:
+            return False
+
+        x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
+        y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
+        cache_alvos[nome] = {
+            "x": x,
+            "y": y,
+            "score": float(alvo.get("score", 0)),
+            "template": alvo.get("template"),
+        }
+        avisar(
+            status_callback,
+            f"Coordenada do alvo visual '{nome}' salva no cache desta execucao.",
+        )
 
     avisar(status_callback, f"Clicando alvo visual '{nome}': x={x}, y={y}.")
     mover_mouse(x, y)
@@ -483,6 +716,28 @@ def clicar_alvo_visual(
         return False
     clicar_mouse()
     return True
+
+
+def obter_coordenada_alvo_visual(config, nome, status_callback=None, regiao=None):
+    alvo_config = obter_config_alvo_visual(config, nome)
+    cache_alvos = obter_cache_execucao(config)["alvos_visuais"]
+    cache = cache_alvos.get(nome)
+    if cache is not None:
+        return int(cache["x"]), int(cache["y"]), True
+
+    alvo = localizar_alvo_visual(config, nome, status_callback, regiao=regiao)
+    if alvo is None:
+        return None, None, False
+
+    x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
+    y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
+    cache_alvos[nome] = {
+        "x": x,
+        "y": y,
+        "score": float(alvo.get("score", 0)),
+        "template": alvo.get("template"),
+    }
+    return x, y, False
 
 
 def abrir_extensao_rewards(
@@ -576,6 +831,7 @@ def localizar_alvo_bonus(config, alvos_clicados, status_callback=None):
         confianca=float(deteccao["confianca"]),
         regiao=regiao_deteccao,
         max_resultados=20,
+        parar_score=deteccao.get("score_forte", 0.95),
     )
     avisar(status_callback, f"Deteccao retornou {len(resultados)} resultado(s).")
 
@@ -665,6 +921,26 @@ def focar_area_scroll(
     if deve_parar(stop_event):
         return False
 
+    if not usar_versao_fixa(config) and listar_templates_alvo_visual(config, "exibir_painel"):
+        avisar(
+            status_callback,
+            "Focando area de scroll pelo alvo treinado 'Exibir painel'.",
+        )
+        if clicar_alvo_visual(
+            config,
+            "exibir_painel",
+            stop_event=stop_event,
+            status_callback=status_callback,
+            safety_callback=safety_callback,
+        ):
+            return True
+
+        avisar(
+            status_callback,
+            "Nao consegui usar 'Exibir painel'. Vou tentar pelo painel detectado automaticamente.",
+            "orange",
+        )
+
     x, y, painel = obter_alvo_area_scroll(
         config,
         coordenadas,
@@ -676,6 +952,8 @@ def focar_area_scroll(
 
     if painel is None:
         avisar(status_callback, f"Clicando uma vez para focar a area de scroll: x={x}, y={y}.")
+    elif painel.get("origem") == "exibir_painel":
+        avisar(status_callback, f"Clicando abaixo de 'Exibir painel' para focar o scroll: x={x}, y={y}.")
     else:
         avisar(
             status_callback,
@@ -721,6 +999,8 @@ def posicionar_mouse_area_scroll(
 
     if painel is None:
         avisar(status_callback, f"Movendo mouse para a area de scroll sem clicar: x={x}, y={y}.")
+    elif painel.get("origem") == "exibir_painel":
+        avisar(status_callback, f"Movendo mouse abaixo de 'Exibir painel': x={x}, y={y}.")
     else:
         avisar(status_callback, f"Movendo mouse para dentro do painel detectado: x={x}, y={y}.")
     mover_mouse(x, y)
@@ -831,6 +1111,7 @@ def detectar_painel_atual(config, status_callback=None):
         {
             "score": painel.get("score"),
             "logo_score": painel.get("logo_score"),
+            "close_score": painel.get("close_score"),
             "light_ratio": painel.get("light_ratio"),
             "origem": painel.get("origem"),
         }
@@ -840,7 +1121,10 @@ def detectar_painel_atual(config, status_callback=None):
         "Painel Rewards detectado automaticamente: "
         f"x={regiao['x']}, y={regiao['y']}, "
         f"w={regiao['width']}, h={regiao['height']}, "
-        f"score={float(regiao.get('score') or 0):.2f}.",
+        f"score={float(regiao.get('score') or 0):.2f}, "
+        f"origem={regiao.get('origem')}, "
+        f"logo={float(regiao.get('logo_score') or 0):.2f}, "
+        f"fechar={float(regiao.get('close_score') or 0):.2f}.",
     )
     return regiao
 
@@ -854,6 +1138,26 @@ def obter_regiao_painel_rewards(config, status_callback=None):
 
 
 def obter_alvo_area_scroll(config, coordenadas, status_callback=None, para_clique=False):
+    if not usar_versao_fixa(config) and listar_templates_alvo_visual(config, "exibir_painel"):
+        x, y, cache = obter_coordenada_alvo_visual(
+            config,
+            "exibir_painel",
+            status_callback=status_callback,
+        )
+        if x is not None and y is not None:
+            origem = "cache" if cache else "deteccao"
+            avisar(
+                status_callback,
+                f"Area de scroll ancorada em 'Exibir painel' ({origem}): x={x}, y={y}.",
+            )
+            return int(x), int(y), {"origem": "exibir_painel"}
+
+        avisar(
+            status_callback,
+            "Template 'Exibir painel' existe, mas nao foi localizado. Usando detector automatico do painel.",
+            "orange",
+        )
+
     painel = obter_regiao_painel_rewards(config, status_callback)
     if painel is not None:
         if para_clique:
@@ -1296,9 +1600,51 @@ def executar_cards_por_imagem(
     if not focar_area_scroll(config, coordenadas, stop_event, status_callback, safety_callback):
         return False
 
+    fim_scroll_detectado = False
     while cards_executados < max_cards:
         if deve_parar(stop_event):
             return False
+
+        avisar(status_callback, "Procurando +10/+5 na area visivel antes de rolar...")
+        alvo = localizar_alvo_bonus(config, alvos_clicados, status_callback)
+        if alvo is not None:
+            cards_executados += 1
+            estado_scroll["cards_executados"] = cards_executados
+            alvos_clicados.append({"x": alvo["x"], "y": alvo["y"]})
+
+            avisar(
+                status_callback,
+                f"Card bonus encontrado ({cards_executados}/{max_cards}). Clicando...",
+            )
+            if not clicar_alvo_detectado(config, alvo, stop_event, status_callback, safety_callback):
+                return False
+
+            if not esperar_intervalo(config, "apos_card_detectado", stop_event, status_callback):
+                return False
+
+            if not voltar_card_rewards(
+                config,
+                coordenadas,
+                stop_event,
+                status_callback,
+                safety_callback,
+            ):
+                return False
+
+            if not esperar_intervalo(
+                config,
+                "apos_voltar_card_detectado",
+                stop_event,
+                status_callback,
+            ):
+                return False
+
+            avisar(status_callback, "Voltamos do card. Conferindo a mesma area antes de rolar.")
+            continue
+
+        if fim_scroll_detectado:
+            avisar(status_callback, "Fim do scroll detectado e nenhum +10/+5 novo encontrado.", "orange")
+            break
 
         if scrolls >= limite_scrolls:
             avisar(
@@ -1308,6 +1654,7 @@ def executar_cards_por_imagem(
             )
             break
 
+        avisar(status_callback, "Nenhum +10/+5 visivel nesta posicao. Agora vou rolar.")
         scrolls += 1
         avisar(status_callback, f"Rolando painel ({scrolls}/{limite_scrolls})...")
         resultado_scroll = rolar_area_extensao(
@@ -1326,47 +1673,7 @@ def executar_cards_por_imagem(
             estado_scroll["scrolls_concluidos"] += 1
             alvos_clicados = []
         estado_scroll["ticks_parciais"] = 0
-
-        avisar(status_callback, "Procurando +10/+5 na area visivel...")
-        alvo = localizar_alvo_bonus(config, alvos_clicados, status_callback)
-        if alvo is None:
-            if resultado_scroll.get("fim_scroll"):
-                avisar(status_callback, "Fim do scroll detectado e nenhum +10/+5 novo encontrado.", "orange")
-                break
-
-            avisar(status_callback, "Nenhum +10/+5 encontrado depois desse scroll.", "orange")
-            continue
-
-        cards_executados += 1
-        estado_scroll["cards_executados"] = cards_executados
-        alvos_clicados.append({"x": alvo["x"], "y": alvo["y"]})
-
-        avisar(
-            status_callback,
-            f"Card bonus encontrado ({cards_executados}/{max_cards}). Clicando...",
-        )
-        if not clicar_alvo_detectado(config, alvo, stop_event, status_callback, safety_callback):
-            return False
-
-        if not esperar_intervalo(config, "apos_card_detectado", stop_event, status_callback):
-            return False
-
-        if not voltar_card_rewards(
-            config,
-            coordenadas,
-            stop_event,
-            status_callback,
-            safety_callback,
-        ):
-            return False
-
-        if not esperar_intervalo(
-            config,
-            "apos_voltar_card_detectado",
-            stop_event,
-            status_callback,
-        ):
-            return False
+        fim_scroll_detectado = bool(resultado_scroll.get("fim_scroll"))
 
     if cards_executados == 0:
         avisar(status_callback, "Nenhum card com +10/+5 encontrado. Seguindo sem clicar.", "orange")

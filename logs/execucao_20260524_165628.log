@@ -1,0 +1,257 @@
+[16:56:28] ======================================================================
+[16:56:28] Fluxo selecionado iniciado
+[16:56:28] Arquivo de log: C:\Users\giorg\Documents\GitHub\AI_REWARDS\logs\execucao_20260524_165628.log
+[16:56:28] ======================================================================
+[16:56:28] Iniciando fluxo selecionado...
+[16:56:28] Preparando automacao completa.
+[16:56:28] Coordenadas carregadas: {'icone_extensao': (-313, 64), 'double_click_scroll': (-27, 303), 'card_1': (-622, 400), 'card_2': (-596, 510), 'card_3': (-581, 608), 'voltar': (-1894, 54)}
+[16:56:28] Abrindo o Microsoft Edge...
+[16:56:28] Pressionando tecla Windows.
+[16:56:29] Digitando app no menu iniciar: EDGE
+[16:56:30] Pressionando Enter para abrir o app.
+[16:56:30] Aguardando Edge abrir por 4.00s.
+[16:56:34] Clicando no icone da extensao...
+[16:56:34] Abrindo extensao por deteccao de imagem.
+[16:56:34] Rodando deteccao do alvo 'icone_extensao' com 7 template(s), confianca 0.82, match forte 0.95.
+[16:56:35] Alvo 'icone_extensao' retornou 1 resultado(s).
+[16:56:35] Melhor alvo 'icone_extensao': x=-312, y=69, score=0.99.
+[16:56:35] Coordenada do alvo visual 'icone_extensao' salva no cache desta execucao.
+[16:56:35] Clicando alvo visual 'icone_extensao': x=-312, y=69.
+[16:56:35] Aguardando 3.99s (apos_icone_extensao: 2.0-5.0s).
+[16:56:39] Rolando painel e procurando cards com +10/+5 ate o fim do scroll (limite de seguranca: 40).
+[16:56:40] Painel Rewards detectado automaticamente: x=-59, y=47, w=480, h=885, score=10.47.
+[16:56:40] Clicando uma vez no topo seguro do painel detectado: x=331, y=81.
+[16:56:40] Procurando +10/+5 na area visivel antes de rolar...
+[16:56:40] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[16:56:40] Painel Rewards detectado automaticamente: x=-59, y=47, w=480, h=885, score=10.48.
+[16:56:40] Busca de bonus limitada ao painel Rewards: x=-59, y=47, w=480, h=885.
+[16:56:41] Deteccao retornou 0 resultado(s).
+[16:56:41] Todos os alvos encontrados ja foram clicados nessa execucao.
+[16:56:41] Nenhum +10/+5 visivel nesta posicao. Agora vou rolar.
+[16:56:41] Rolando painel (1/40)...
+[16:56:42] Painel Rewards detectado automaticamente: x=-59, y=47, w=480, h=885, score=10.48.
+[16:56:42] Movendo mouse para dentro do painel detectado: x=181, y=489.
+[16:56:42] Painel Rewards detectado automaticamente: x=-59, y=47, w=480, h=885, score=10.48.
+[16:56:42] Detector de fim do scroll usando regiao x=-59, y=47, w=480, h=885.
+[16:56:42] Rolando mouse em 5 passo(s), direcao=-1.
+[16:56:42] Scroll do mouse 1/5.
+[16:56:43] Scroll do mouse 2/5.
+[16:56:43] Scroll do mouse 3/5.
+[16:56:43] Scroll do mouse 4/5.
+[16:56:43] Scroll do mouse 5/5.
+[16:56:44] Painel Rewards detectado automaticamente: x=-59, y=47, w=480, h=885, score=10.48.
+[16:56:44] Diferenca visual do painel apos scroll: 0.31 (fim se <= 1.00).
+[16:56:44] Detector visual do painel indicou fim do scroll.
+[16:56:44] Procurando +10/+5 na area visivel antes de rolar...
+[16:56:44] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[16:56:44] Painel Rewards detectado automaticamente: x=-59, y=47, w=480, h=885, score=10.48.
+[16:56:44] Busca de bonus limitada ao painel Rewards: x=-59, y=47, w=480, h=885.
+[16:56:46] Deteccao retornou 0 resultado(s).
+[16:56:46] Todos os alvos encontrados ja foram clicados nessa execucao.
+[16:56:46] Fim do scroll detectado e nenhum +10/+5 novo encontrado.
+[16:56:46] Nenhum card com +10/+5 encontrado. Seguindo sem clicar.
+[16:56:46] Conjunto diario concluido. Iniciando pesquisas...
+[16:56:49] Iniciando sessao de pesquisas: 20 busca(s).
+[16:56:49] Busca 1 de 20...
+[16:56:49] Buscando 3 palavra(s) na API.
+[16:56:51] API de palavras falhou. Usando palavras locais.
+[16:56:51] Palavras locais escolhidas: ['coffee', 'notebook', 'maps']
+[16:56:51] Texto da busca 1: coffee notebook maps
+[16:56:51] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:56:51] Limpando barra de busca com Ctrl+A e Delete.
+[16:56:52] Digitando busca letra por letra.
+[16:56:57] Pressionando Enter para pesquisar.
+[16:56:58] Aguardando 6.45s ate a proxima busca.
+[16:57:04] Busca 2 de 20...
+[16:57:04] Buscando 2 palavra(s) na API.
+[16:57:04] API de palavras falhou. Usando palavras locais.
+[16:57:04] Palavras locais escolhidas: ['science', 'science']
+[16:57:04] Texto da busca 2: science science
+[16:57:04] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:57:05] Limpando barra de busca com Ctrl+A e Delete.
+[16:57:06] Digitando busca letra por letra.
+[16:57:10] Pressionando Enter para pesquisar.
+[16:57:10] Aguardando 7.58s ate a proxima busca.
+[16:57:17] Busca 3 de 20...
+[16:57:17] Buscando 2 palavra(s) na API.
+[16:57:18] API de palavras falhou. Usando palavras locais.
+[16:57:18] Palavras locais escolhidas: ['health', 'technology']
+[16:57:18] Texto da busca 3: health technology
+[16:57:18] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:57:19] Limpando barra de busca com Ctrl+A e Delete.
+[16:57:19] Digitando busca letra por letra.
+[16:57:24] Pressionando Enter para pesquisar.
+[16:57:24] Aguardando 6.92s ate a proxima busca.
+[16:57:31] Busca 4 de 20...
+[16:57:31] Buscando 3 palavra(s) na API.
+[16:57:31] API de palavras falhou. Usando palavras locais.
+[16:57:31] Palavras locais escolhidas: ['finance', 'recipe', 'recipe']
+[16:57:31] Texto da busca 4: finance recipe recipe
+[16:57:31] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:57:32] Limpando barra de busca com Ctrl+A e Delete.
+[16:57:32] Digitando busca letra por letra.
+[16:57:38] Pressionando Enter para pesquisar.
+[16:57:38] Aguardando 6.95s ate a proxima busca.
+[16:57:45] Busca 5 de 20...
+[16:57:45] Buscando 1 palavra(s) na API.
+[16:57:46] API de palavras falhou. Usando palavras locais.
+[16:57:46] Palavras locais escolhidas: ['history']
+[16:57:46] Texto da busca 5: history
+[16:57:46] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:57:46] Limpando barra de busca com Ctrl+A e Delete.
+[16:57:47] Digitando busca letra por letra.
+[16:57:49] Pressionando Enter para pesquisar.
+[16:57:49] Aguardando 5.94s ate a proxima busca.
+[16:57:55] Busca 6 de 20...
+[16:57:55] Buscando 2 palavra(s) na API.
+[16:57:55] API de palavras falhou. Usando palavras locais.
+[16:57:55] Palavras locais escolhidas: ['garden', 'calendar']
+[16:57:55] Texto da busca 6: garden calendar
+[16:57:55] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:57:56] Limpando barra de busca com Ctrl+A e Delete.
+[16:57:57] Digitando busca letra por letra.
+[16:58:01] Pressionando Enter para pesquisar.
+[16:58:01] Aguardando 6.13s ate a proxima busca.
+[16:58:07] Busca 7 de 20...
+[16:58:07] Buscando 1 palavra(s) na API.
+[16:58:07] API de palavras falhou. Usando palavras locais.
+[16:58:07] Palavras locais escolhidas: ['notebook']
+[16:58:07] Texto da busca 7: notebook
+[16:58:07] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:58:08] Limpando barra de busca com Ctrl+A e Delete.
+[16:58:09] Digitando busca letra por letra.
+[16:58:11] Pressionando Enter para pesquisar.
+[16:58:11] Aguardando 7.89s ate a proxima busca.
+[16:58:19] Busca 8 de 20...
+[16:58:19] Buscando 3 palavra(s) na API.
+[16:58:19] API de palavras falhou. Usando palavras locais.
+[16:58:19] Palavras locais escolhidas: ['space', 'travel', 'maps']
+[16:58:19] Texto da busca 8: space travel maps
+[16:58:19] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:58:20] Limpando barra de busca com Ctrl+A e Delete.
+[16:58:21] Digitando busca letra por letra.
+[16:58:25] Pressionando Enter para pesquisar.
+[16:58:25] Aguardando 6.57s ate a proxima busca.
+[16:58:32] Busca 9 de 20...
+[16:58:32] Buscando 3 palavra(s) na API.
+[16:58:32] API de palavras falhou. Usando palavras locais.
+[16:58:32] Palavras locais escolhidas: ['recipe', 'coffee', 'history']
+[16:58:32] Texto da busca 9: recipe coffee history
+[16:58:32] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:58:33] Limpando barra de busca com Ctrl+A e Delete.
+[16:58:34] Digitando busca letra por letra.
+[16:58:39] Pressionando Enter para pesquisar.
+[16:58:40] Aguardando 5.66s ate a proxima busca.
+[16:58:45] Busca 10 de 20...
+[16:58:45] Buscando 3 palavra(s) na API.
+[16:58:45] API de palavras falhou. Usando palavras locais.
+[16:58:45] Palavras locais escolhidas: ['science', 'notebook', 'sports']
+[16:58:45] Texto da busca 10: science notebook sports
+[16:58:45] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:58:46] Limpando barra de busca com Ctrl+A e Delete.
+[16:58:47] Digitando busca letra por letra.
+[16:58:53] Pressionando Enter para pesquisar.
+[16:58:53] Aguardando 5.30s ate a proxima busca.
+[16:58:59] Busca 11 de 20...
+[16:58:59] Buscando 2 palavra(s) na API.
+[16:58:59] API de palavras falhou. Usando palavras locais.
+[16:58:59] Palavras locais escolhidas: ['sports', 'garden']
+[16:58:59] Texto da busca 11: sports garden
+[16:58:59] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:59:00] Limpando barra de busca com Ctrl+A e Delete.
+[16:59:00] Digitando busca letra por letra.
+[16:59:04] Pressionando Enter para pesquisar.
+[16:59:04] Aguardando 7.27s ate a proxima busca.
+[16:59:11] Busca 12 de 20...
+[16:59:11] Buscando 3 palavra(s) na API.
+[16:59:11] API de palavras falhou. Usando palavras locais.
+[16:59:11] Palavras locais escolhidas: ['weather', 'travel', 'sports']
+[16:59:11] Texto da busca 12: weather travel sports
+[16:59:11] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:59:12] Limpando barra de busca com Ctrl+A e Delete.
+[16:59:13] Digitando busca letra por letra.
+[16:59:18] Pressionando Enter para pesquisar.
+[16:59:19] Aguardando 6.51s ate a proxima busca.
+[16:59:25] Busca 13 de 20...
+[16:59:25] Buscando 3 palavra(s) na API.
+[16:59:25] API de palavras falhou. Usando palavras locais.
+[16:59:25] Palavras locais escolhidas: ['science', 'maps', 'python']
+[16:59:25] Texto da busca 13: science maps python
+[16:59:25] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:59:26] Limpando barra de busca com Ctrl+A e Delete.
+[16:59:27] Digitando busca letra por letra.
+[16:59:32] Pressionando Enter para pesquisar.
+[16:59:32] Aguardando 6.09s ate a proxima busca.
+[16:59:38] Busca 14 de 20...
+[16:59:38] Buscando 1 palavra(s) na API.
+[16:59:39] API de palavras falhou. Usando palavras locais.
+[16:59:39] Palavras locais escolhidas: ['travel']
+[16:59:39] Texto da busca 14: travel
+[16:59:39] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:59:39] Limpando barra de busca com Ctrl+A e Delete.
+[16:59:40] Digitando busca letra por letra.
+[16:59:41] Pressionando Enter para pesquisar.
+[16:59:42] Aguardando 5.40s ate a proxima busca.
+[16:59:47] Busca 15 de 20...
+[16:59:47] Buscando 1 palavra(s) na API.
+[16:59:47] API de palavras falhou. Usando palavras locais.
+[16:59:47] Palavras locais escolhidas: ['coffee']
+[16:59:47] Texto da busca 15: coffee
+[16:59:47] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:59:48] Limpando barra de busca com Ctrl+A e Delete.
+[16:59:49] Digitando busca letra por letra.
+[16:59:50] Pressionando Enter para pesquisar.
+[16:59:50] Aguardando 5.83s ate a proxima busca.
+[16:59:56] Busca 16 de 20...
+[16:59:56] Buscando 2 palavra(s) na API.
+[16:59:57] API de palavras falhou. Usando palavras locais.
+[16:59:57] Palavras locais escolhidas: ['recipe', 'space']
+[16:59:57] Texto da busca 16: recipe space
+[16:59:57] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[16:59:57] Limpando barra de busca com Ctrl+A e Delete.
+[16:59:58] Digitando busca letra por letra.
+[17:00:01] Pressionando Enter para pesquisar.
+[17:00:01] Aguardando 7.41s ate a proxima busca.
+[17:00:09] Busca 17 de 20...
+[17:00:09] Buscando 2 palavra(s) na API.
+[17:00:09] API de palavras falhou. Usando palavras locais.
+[17:00:09] Palavras locais escolhidas: ['language', 'calendar']
+[17:00:09] Texto da busca 17: language calendar
+[17:00:09] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[17:00:10] Limpando barra de busca com Ctrl+A e Delete.
+[17:00:10] Digitando busca letra por letra.
+[17:00:15] Pressionando Enter para pesquisar.
+[17:00:15] Aguardando 5.89s ate a proxima busca.
+[17:00:21] Busca 18 de 20...
+[17:00:21] Buscando 3 palavra(s) na API.
+[17:00:21] API de palavras falhou. Usando palavras locais.
+[17:00:21] Palavras locais escolhidas: ['finance', 'sports', 'technology']
+[17:00:21] Texto da busca 18: finance sports technology
+[17:00:21] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[17:00:22] Limpando barra de busca com Ctrl+A e Delete.
+[17:00:23] Digitando busca letra por letra.
+[17:00:29] Pressionando Enter para pesquisar.
+[17:00:30] Aguardando 7.05s ate a proxima busca.
+[17:00:37] Busca 19 de 20...
+[17:00:37] Buscando 2 palavra(s) na API.
+[17:00:37] API de palavras falhou. Usando palavras locais.
+[17:00:37] Palavras locais escolhidas: ['sports', 'movie']
+[17:00:37] Texto da busca 19: sports movie
+[17:00:37] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[17:00:38] Limpando barra de busca com Ctrl+A e Delete.
+[17:00:38] Digitando busca letra por letra.
+[17:00:42] Pressionando Enter para pesquisar.
+[17:00:42] Aguardando 6.66s ate a proxima busca.
+[17:00:49] Busca 20 de 20...
+[17:00:49] Buscando 3 palavra(s) na API.
+[17:00:49] API de palavras falhou. Usando palavras locais.
+[17:00:49] Palavras locais escolhidas: ['finance', 'garden', 'books']
+[17:00:49] Texto da busca 20: finance garden books
+[17:00:49] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[17:00:49] Limpando barra de busca com Ctrl+A e Delete.
+[17:00:50] Digitando busca letra por letra.
+[17:00:56] Pressionando Enter para pesquisar.
+[17:00:56] Aguardando 5.02s ate a proxima busca.
+[17:01:01] Sessao de pesquisas concluida.
+[17:01:01] Fluxo selecionado concluido.
+[17:01:01] Finalizando thread do fluxo completo.

@@ -365,12 +365,18 @@ def capturar_tela(regiao=None):
         return capturar_tela_imagegrab(regiao)
 
 
-def localizar_template(template_path, confianca=0.85, regiao=None, max_resultados=10):
+def _localizar_template_em_imagem(
+    template_path,
+    tela,
+    offset_x,
+    offset_y,
+    confianca=0.85,
+    max_resultados=10,
+):
     template_path = Path(template_path)
     if not template_path.exists():
         raise FileNotFoundError(f"Template nao encontrado: {template_path}")
 
-    tela, offset_x, offset_y = capturar_tela(regiao)
     template = Image.open(template_path).convert("RGB")
 
     tela_cv = cv2.cvtColor(np.array(tela.convert("RGB")), cv2.COLOR_RGB2BGR)
@@ -423,18 +429,46 @@ def localizar_template(template_path, confianca=0.85, regiao=None, max_resultado
     return filtrados
 
 
-def localizar_templates(template_paths, confianca=0.85, regiao=None, max_resultados=10):
+def localizar_template(template_path, confianca=0.85, regiao=None, max_resultados=10):
+    tela, offset_x, offset_y = capturar_tela(regiao)
+    return _localizar_template_em_imagem(
+        template_path,
+        tela,
+        offset_x,
+        offset_y,
+        confianca=confianca,
+        max_resultados=max_resultados,
+    )
+
+
+def localizar_templates(
+    template_paths,
+    confianca=0.85,
+    regiao=None,
+    max_resultados=10,
+    parar_score=None,
+):
     resultados = []
+    tela, offset_x, offset_y = capturar_tela(regiao)
 
     for template_path in template_paths:
-        for resultado in localizar_template(
+        resultados_template = _localizar_template_em_imagem(
             template_path,
+            tela,
+            offset_x,
+            offset_y,
             confianca=confianca,
-            regiao=regiao,
             max_resultados=max_resultados,
-        ):
+        )
+
+        for resultado in resultados_template:
             resultado["template"] = str(template_path)
             resultados.append(resultado)
+
+        if parar_score is not None and resultados_template:
+            melhor_score = max(resultado["score"] for resultado in resultados_template)
+            if melhor_score >= float(parar_score):
+                break
 
     resultados.sort(key=lambda item: item["score"], reverse=True)
 
@@ -514,6 +548,62 @@ def _pontuar_logo_microsoft(arr, x, y, width, height):
     return 0.0
 
 
+def _segmentos_true(valores):
+    segmentos = []
+    inicio = None
+    for indice, ativo in enumerate(valores):
+        if ativo and inicio is None:
+            inicio = indice
+        elif not ativo and inicio is not None:
+            segmentos.append((inicio, indice))
+            inicio = None
+
+    if inicio is not None:
+        segmentos.append((inicio, len(valores)))
+
+    return segmentos
+
+
+def _fechar_lacunas_1d(valores, kernel_tamanho):
+    kernel = np.ones((1, int(kernel_tamanho)), dtype=np.uint8)
+    mask = valores.astype(np.uint8).reshape(1, -1) * 255
+    fechado = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+    return fechado.reshape(-1) > 0
+
+
+def _escolher_segmento_contendo(segmentos, ponto):
+    contendo = [segmento for segmento in segmentos if segmento[0] <= ponto < segmento[1]]
+    if contendo:
+        return max(contendo, key=lambda item: item[1] - item[0])
+
+    if not segmentos:
+        return None
+
+    return min(segmentos, key=lambda item: min(abs(item[0] - ponto), abs(item[1] - ponto)))
+
+
+def _pontuar_fechamento_painel(arr, x, y, width, height):
+    tela_altura, tela_largura = arr.shape[:2]
+    if width <= 0 or height <= 0:
+        return 0.0
+
+    topo = arr[y : min(tela_altura, y + min(120, height)), x : min(tela_largura, x + width)]
+    if topo.size == 0:
+        return 0.0
+
+    direita = topo[:, max(0, topo.shape[1] - 90) : topo.shape[1]]
+    escuro = (
+        (direita[:, :, 0] < 90)
+        & (direita[:, :, 1] < 90)
+        & (direita[:, :, 2] < 90)
+    )
+    linhas = escuro.sum(axis=1)
+    colunas = escuro.sum(axis=0)
+    tem_traco_horizontal = linhas.max(initial=0) >= 6
+    tem_traco_vertical = colunas.max(initial=0) >= 6
+    return 1.0 if tem_traco_horizontal and tem_traco_vertical else 0.0
+
+
 def _adicionar_candidato_painel(candidatos, arr, light_mask, x, y, width, height, origem):
     tela_altura, tela_largura = arr.shape[:2]
     if width < 280 or width > min(900, tela_largura):
@@ -531,6 +621,7 @@ def _adicionar_candidato_painel(candidatos, arr, light_mask, x, y, width, height
         return
 
     logo_score = _pontuar_logo_microsoft(arr, x, y, width, height)
+    close_score = _pontuar_fechamento_painel(arr, x, y, width, height)
     altura_score = min(1.0, height / max(1, tela_altura * 0.55))
     largura_preferida = 1.0 - min(1.0, abs(width - 470) / 470)
     topo_score = 1.0 - min(1.0, y / max(1, tela_altura * 0.45))
@@ -539,6 +630,7 @@ def _adicionar_candidato_painel(candidatos, arr, light_mask, x, y, width, height
 
     score = (
         logo_score * 4.0
+        + close_score * 1.6
         + altura_score * 2.2
         + largura_preferida * 1.3
         + topo_score * 1.1
@@ -555,6 +647,7 @@ def _adicionar_candidato_painel(candidatos, arr, light_mask, x, y, width, height
             "height": int(height),
             "score": float(score),
             "logo_score": float(logo_score),
+            "close_score": float(close_score),
             "light_ratio": float(light_ratio),
             "origem": origem,
         }
@@ -654,6 +747,46 @@ def _candidatos_painel_por_logo(arr, light_mask):
         if logo_score < 1.0:
             continue
 
+        logo_centro_x = int((janela_x0 + janela_x1) / 2)
+        logo_centro_y = int((janela_y0 + janela_y1) / 2)
+        header_y0 = max(0, janela_y0 - 28)
+        header_y1 = min(altura, janela_y0 + 170)
+        faixa_header = light_mask[header_y0:header_y1, :]
+        if faixa_header.size:
+            colunas = (faixa_header.mean(axis=0) / 255.0) >= 0.34
+            colunas = _fechar_lacunas_1d(colunas, 41)
+            segmento_x = _escolher_segmento_contendo(
+                _segmentos_true(colunas),
+                logo_centro_x,
+            )
+        else:
+            segmento_x = None
+
+        if segmento_x is not None:
+            panel_x0, panel_x1 = segmento_x
+            panel_width = panel_x1 - panel_x0
+            if 280 <= panel_width <= min(900, largura):
+                linhas = (light_mask[:, panel_x0:panel_x1].mean(axis=1) / 255.0) >= 0.16
+                linhas = _fechar_lacunas_1d(linhas, 71)
+                segmento_y = _escolher_segmento_contendo(
+                    _segmentos_true(linhas),
+                    logo_centro_y,
+                )
+                if segmento_y is not None:
+                    panel_y0, panel_y1 = segmento_y
+                    panel_y0 = max(0, min(panel_y0, janela_y0 - 18))
+                    panel_height = panel_y1 - panel_y0
+                    _adicionar_candidato_painel(
+                        candidatos,
+                        arr,
+                        light_mask,
+                        panel_x0,
+                        panel_y0,
+                        panel_width,
+                        panel_height,
+                        "logo_expandido",
+                    )
+
         panel_x = max(0, janela_x0 - 14)
         panel_y = max(0, janela_y0 - 12)
         panel_height = min(altura - panel_y, max(360, int(altura * 0.82)))
@@ -710,6 +843,10 @@ def detectar_painel_rewards():
     if not candidatos:
         return None
 
+    candidatos_com_logo = [item for item in candidatos if item.get("logo_score", 0) >= 1.0]
+    if candidatos_com_logo:
+        candidatos = candidatos_com_logo
+
     candidatos.sort(key=lambda item: item["score"], reverse=True)
     melhor = candidatos[0]
     return {
@@ -719,6 +856,7 @@ def detectar_painel_rewards():
         "height": melhor["height"],
         "score": melhor["score"],
         "logo_score": melhor["logo_score"],
+        "close_score": melhor.get("close_score", 0.0),
         "light_ratio": melhor["light_ratio"],
         "origem": melhor["origem"],
     }
