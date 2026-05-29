@@ -1,0 +1,375 @@
+[01:18:52] ======================================================================
+[01:18:52] Fluxo selecionado iniciado
+[01:18:52] Arquivo de log: C:\Users\giorg\Documents\GitHub\AI_REWARDS\logs\execucao_20260525_011852.log
+[01:18:52] ======================================================================
+[01:18:52] Iniciando fluxo selecionado...
+[01:18:52] Preparando automacao completa.
+[01:18:52] Coordenadas carregadas: {'icone_extensao': (-313, 64), 'double_click_scroll': (-27, 303), 'card_1': (-622, 400), 'card_2': (-596, 510), 'card_3': (-581, 608), 'voltar': (-1894, 54)}
+[01:18:52] Abrindo o Microsoft Edge...
+[01:18:52] Pressionando tecla Windows.
+[01:18:53] Digitando app no menu iniciar: EDGE
+[01:18:54] Pressionando Enter para abrir o app.
+[01:18:54] Aguardando Edge abrir por 4.00s.
+[01:18:58] Clicando no icone da extensao...
+[01:18:58] Abrindo extensao por deteccao de imagem.
+[01:18:58] Rodando deteccao do alvo 'icone_extensao' com 7 template(s), confianca 0.82, match forte 0.95.
+[01:18:59] Alvo 'icone_extensao' retornou 1 resultado(s).
+[01:18:59] Melhor alvo 'icone_extensao': x=-312, y=69, score=0.99.
+[01:18:59] Coordenada do alvo visual 'icone_extensao' salva no cache desta execucao.
+[01:18:59] Clicando alvo visual 'icone_extensao': x=-312, y=69.
+[01:18:59] Aguardando 4.51s (apos_icone_extensao: 2.0-5.0s).
+[01:19:04] Rolando painel e procurando cards com +10/+5 ate o fim do scroll (limite de seguranca: 40).
+[01:19:04] Focando area de scroll pelo alvo treinado 'Exibir painel'.
+[01:19:04] Rodando deteccao do alvo 'exibir_painel' com 19 template(s), confianca 0.82, match forte 0.95.
+[01:19:05] Alvo 'exibir_painel' retornou 1 resultado(s).
+[01:19:05] Melhor alvo 'exibir_painel': x=-169, y=249, score=1.00.
+[01:19:05] Coordenada do alvo visual 'exibir_painel' salva no cache desta execucao.
+[01:19:05] Clicando alvo visual 'exibir_painel': x=-169, y=319.
+[01:19:05] Procurando +10/+5 na area visivel antes de rolar...
+[01:19:05] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[01:19:06] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[01:19:06] Busca de bonus limitada ao painel Rewards: x=-494, y=41, w=470, h=974.
+[01:19:07] Deteccao retornou 0 resultado(s).
+[01:19:07] Todos os alvos encontrados ja foram clicados nessa execucao.
+[01:19:07] Nenhum +10/+5 visivel nesta posicao. Agora vou rolar.
+[01:19:07] Rolando painel (1/40)...
+[01:19:07] Area de scroll ancorada em 'Exibir painel' (cache): x=-169, y=319.
+[01:19:07] Movendo mouse abaixo de 'Exibir painel': x=-169, y=319.
+[01:19:08] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[01:19:08] Detector de fim do scroll usando regiao x=-494, y=41, w=470, h=974.
+[01:19:08] Rolando mouse em 5 passo(s), direcao=-1.
+[01:19:08] Scroll do mouse 1/5.
+[01:19:08] Scroll do mouse 2/5.
+[01:19:08] Scroll do mouse 3/5.
+[01:19:09] Scroll do mouse 4/5.
+[01:19:09] Scroll do mouse 5/5.
+[01:19:10] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[01:19:10] Scroll interno detectado por barra cinza: antes_y=388, depois_y=592, delta=204, fim=False.
+[01:19:10] Procurando +10/+5 na area visivel antes de rolar...
+[01:19:10] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[01:19:11] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[01:19:11] Busca de bonus limitada ao painel Rewards: x=-494, y=41, w=470, h=974.
+[01:19:12] Deteccao retornou 0 resultado(s).
+[01:19:12] Todos os alvos encontrados ja foram clicados nessa execucao.
+[01:19:12] Nenhum +10/+5 visivel nesta posicao. Agora vou rolar.
+[01:19:12] Rolando painel (2/40)...
+[01:19:12] Area de scroll ancorada em 'Exibir painel' (cache): x=-169, y=319.
+[01:19:12] Movendo mouse abaixo de 'Exibir painel': x=-169, y=319.
+[01:19:13] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[01:19:13] Detector de fim do scroll usando regiao x=-494, y=41, w=470, h=974.
+[01:19:13] Rolando mouse em 5 passo(s), direcao=-1.
+[01:19:13] Scroll do mouse 1/5.
+[01:19:13] Scroll do mouse 2/5.
+[01:19:14] Scroll do mouse 3/5.
+[01:19:14] Scroll do mouse 4/5.
+[01:19:14] Scroll do mouse 5/5.
+[01:19:15] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[01:19:15] Scroll interno detectado por barra cinza: antes_y=592, depois_y=797, delta=205, fim=False.
+[01:19:15] Procurando +10/+5 na area visivel antes de rolar...
+[01:19:15] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[01:19:16] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[01:19:16] Busca de bonus limitada ao painel Rewards: x=-494, y=41, w=470, h=974.
+[01:19:18] Deteccao retornou 0 resultado(s).
+[01:19:18] Todos os alvos encontrados ja foram clicados nessa execucao.
+[01:19:18] Nenhum +10/+5 visivel nesta posicao. Agora vou rolar.
+[01:19:18] Rolando painel (3/40)...
+[01:19:18] Area de scroll ancorada em 'Exibir painel' (cache): x=-169, y=319.
+[01:19:18] Movendo mouse abaixo de 'Exibir painel': x=-169, y=319.
+[01:19:18] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[01:19:18] Detector de fim do scroll usando regiao x=-494, y=41, w=470, h=974.
+[01:19:18] Rolando mouse em 5 passo(s), direcao=-1.
+[01:19:18] Scroll do mouse 1/5.
+[01:19:19] Scroll do mouse 2/5.
+[01:19:19] Scroll do mouse 3/5.
+[01:19:19] Scroll do mouse 4/5.
+[01:19:19] Scroll do mouse 5/5.
+[01:19:20] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[01:19:20] Scroll interno detectado por barra cinza: antes_y=797, depois_y=881, delta=84, fim=True.
+[01:19:20] Detector da barra interna indicou fim do scroll.
+[01:19:20] Procurando +10/+5 na area visivel antes de rolar...
+[01:19:20] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[01:19:21] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[01:19:21] Busca de bonus limitada ao painel Rewards: x=-494, y=41, w=470, h=974.
+[01:19:22] Deteccao retornou 0 resultado(s).
+[01:19:22] Todos os alvos encontrados ja foram clicados nessa execucao.
+[01:19:22] Fim do scroll detectado e nenhum +10/+5 novo encontrado.
+[01:19:22] Nenhum card com +10/+5 encontrado. Seguindo sem clicar.
+[01:19:22] Conjunto diário concluído. Iniciando Pesquisar com o Bing...
+[01:19:27] Iniciando Pesquisar com o Bing: 20 busca(s).
+[01:19:27] Busca 1 de 20...
+[01:19:27] Buscando 3 palavra(s) na API.
+[01:19:27] API de palavras falhou. Usando palavras locais.
+[01:19:27] Palavras locais escolhidas: ['health', 'science', 'recipe']
+[01:19:27] Texto da busca 1: health science recipe
+[01:19:27] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:19:28] Limpando barra de busca com Ctrl+A e Delete.
+[01:19:28] Digitando busca letra por letra.
+[01:19:34] Pressionando Enter para pesquisar.
+[01:19:34] Aguardando 6.76s ate a proxima busca.
+[01:19:41] Busca 2 de 20...
+[01:19:41] Buscando 3 palavra(s) na API.
+[01:19:42] API de palavras falhou. Usando palavras locais.
+[01:19:42] Palavras locais escolhidas: ['garden', 'garden', 'technology']
+[01:19:42] Texto da busca 2: garden garden technology
+[01:19:42] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:19:42] Limpando barra de busca com Ctrl+A e Delete.
+[01:19:43] Digitando busca letra por letra.
+[01:19:50] Pressionando Enter para pesquisar.
+[01:19:50] Aguardando 6.51s ate a proxima busca.
+[01:19:56] Busca 3 de 20...
+[01:19:56] Buscando 1 palavra(s) na API.
+[01:19:57] API de palavras falhou. Usando palavras locais.
+[01:19:57] Palavras locais escolhidas: ['garden']
+[01:19:57] Texto da busca 3: garden
+[01:19:57] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:19:57] Limpando barra de busca com Ctrl+A e Delete.
+[01:19:58] Digitando busca letra por letra.
+[01:20:00] Pressionando Enter para pesquisar.
+[01:20:00] Aguardando 6.75s ate a proxima busca.
+[01:20:07] Busca 4 de 20...
+[01:20:07] Buscando 3 palavra(s) na API.
+[01:20:07] API de palavras falhou. Usando palavras locais.
+[01:20:07] Palavras locais escolhidas: ['movie', 'history', 'sports']
+[01:20:07] Texto da busca 4: movie history sports
+[01:20:07] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:20:08] Limpando barra de busca com Ctrl+A e Delete.
+[01:20:08] Digitando busca letra por letra.
+[01:20:14] Pressionando Enter para pesquisar.
+[01:20:14] Aguardando 5.61s ate a proxima busca.
+[01:20:20] Busca 5 de 20...
+[01:20:20] Buscando 3 palavra(s) na API.
+[01:20:20] API de palavras falhou. Usando palavras locais.
+[01:20:20] Palavras locais escolhidas: ['language', 'weather', 'python']
+[01:20:20] Texto da busca 5: language weather python
+[01:20:20] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:20:21] Limpando barra de busca com Ctrl+A e Delete.
+[01:20:22] Digitando busca letra por letra.
+[01:20:28] Pressionando Enter para pesquisar.
+[01:20:28] Aguardando 6.02s ate a proxima busca.
+[01:20:34] Busca 6 de 20...
+[01:20:34] Buscando 2 palavra(s) na API.
+[01:20:35] API de palavras falhou. Usando palavras locais.
+[01:20:35] Palavras locais escolhidas: ['python', 'science']
+[01:20:35] Texto da busca 6: python science
+[01:20:35] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:20:36] Limpando barra de busca com Ctrl+A e Delete.
+[01:20:36] Digitando busca letra por letra.
+[01:20:40] Pressionando Enter para pesquisar.
+[01:20:40] Aguardando 5.54s ate a proxima busca.
+[01:20:46] Busca 7 de 20...
+[01:20:46] Buscando 3 palavra(s) na API.
+[01:20:46] API de palavras falhou. Usando palavras locais.
+[01:20:46] Palavras locais escolhidas: ['calendar', 'coffee', 'science']
+[01:20:46] Texto da busca 7: calendar coffee science
+[01:20:46] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:20:47] Limpando barra de busca com Ctrl+A e Delete.
+[01:20:47] Digitando busca letra por letra.
+[01:20:54] Pressionando Enter para pesquisar.
+[01:20:54] Aguardando 5.80s ate a proxima busca.
+[01:21:00] Busca 8 de 20...
+[01:21:00] Buscando 1 palavra(s) na API.
+[01:21:00] API de palavras falhou. Usando palavras locais.
+[01:21:00] Palavras locais escolhidas: ['history']
+[01:21:00] Texto da busca 8: history
+[01:21:00] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:21:01] Limpando barra de busca com Ctrl+A e Delete.
+[01:21:02] Digitando busca letra por letra.
+[01:21:04] Pressionando Enter para pesquisar.
+[01:21:04] Aguardando 6.34s ate a proxima busca.
+[01:21:10] Busca 9 de 20...
+[01:21:10] Buscando 1 palavra(s) na API.
+[01:21:11] API de palavras falhou. Usando palavras locais.
+[01:21:11] Palavras locais escolhidas: ['history']
+[01:21:11] Texto da busca 9: history
+[01:21:11] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:21:11] Limpando barra de busca com Ctrl+A e Delete.
+[01:21:12] Digitando busca letra por letra.
+[01:21:14] Pressionando Enter para pesquisar.
+[01:21:14] Aguardando 5.06s ate a proxima busca.
+[01:21:19] Busca 10 de 20...
+[01:21:19] Buscando 3 palavra(s) na API.
+[01:21:20] API de palavras falhou. Usando palavras locais.
+[01:21:20] Palavras locais escolhidas: ['recipe', 'music', 'music']
+[01:21:20] Texto da busca 10: recipe music music
+[01:21:20] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:21:20] Limpando barra de busca com Ctrl+A e Delete.
+[01:21:21] Digitando busca letra por letra.
+[01:21:26] Pressionando Enter para pesquisar.
+[01:21:26] Aguardando 7.89s ate a proxima busca.
+[01:21:34] Busca 11 de 20...
+[01:21:34] Buscando 1 palavra(s) na API.
+[01:21:34] API de palavras falhou. Usando palavras locais.
+[01:21:34] Palavras locais escolhidas: ['books']
+[01:21:34] Texto da busca 11: books
+[01:21:34] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:21:35] Limpando barra de busca com Ctrl+A e Delete.
+[01:21:36] Digitando busca letra por letra.
+[01:21:37] Pressionando Enter para pesquisar.
+[01:21:37] Aguardando 6.33s ate a proxima busca.
+[01:21:44] Busca 12 de 20...
+[01:21:44] Buscando 3 palavra(s) na API.
+[01:21:44] API de palavras falhou. Usando palavras locais.
+[01:21:44] Palavras locais escolhidas: ['books', 'history', 'books']
+[01:21:44] Texto da busca 12: books history books
+[01:21:44] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:21:45] Limpando barra de busca com Ctrl+A e Delete.
+[01:21:45] Digitando busca letra por letra.
+[01:21:51] Pressionando Enter para pesquisar.
+[01:21:51] Aguardando 5.65s ate a proxima busca.
+[01:21:57] Busca 13 de 20...
+[01:21:57] Buscando 1 palavra(s) na API.
+[01:21:57] API de palavras falhou. Usando palavras locais.
+[01:21:57] Palavras locais escolhidas: ['weather']
+[01:21:57] Texto da busca 13: weather
+[01:21:57] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:21:58] Limpando barra de busca com Ctrl+A e Delete.
+[01:21:58] Digitando busca letra por letra.
+[01:22:00] Pressionando Enter para pesquisar.
+[01:22:00] Aguardando 5.89s ate a proxima busca.
+[01:22:06] Busca 14 de 20...
+[01:22:06] Buscando 2 palavra(s) na API.
+[01:22:07] API de palavras falhou. Usando palavras locais.
+[01:22:07] Palavras locais escolhidas: ['space', 'notebook']
+[01:22:07] Texto da busca 14: space notebook
+[01:22:07] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:22:07] Limpando barra de busca com Ctrl+A e Delete.
+[01:22:08] Digitando busca letra por letra.
+[01:22:12] Pressionando Enter para pesquisar.
+[01:22:12] Aguardando 7.93s ate a proxima busca.
+[01:22:20] Busca 15 de 20...
+[01:22:20] Buscando 3 palavra(s) na API.
+[01:22:20] API de palavras falhou. Usando palavras locais.
+[01:22:20] Palavras locais escolhidas: ['history', 'travel', 'movie']
+[01:22:20] Texto da busca 15: history travel movie
+[01:22:20] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:22:21] Limpando barra de busca com Ctrl+A e Delete.
+[01:22:22] Digitando busca letra por letra.
+[01:22:27] Pressionando Enter para pesquisar.
+[01:22:28] Aguardando 7.72s ate a proxima busca.
+[01:22:35] Busca 16 de 20...
+[01:22:35] Buscando 1 palavra(s) na API.
+[01:22:36] API de palavras falhou. Usando palavras locais.
+[01:22:36] Palavras locais escolhidas: ['movie']
+[01:22:36] Texto da busca 16: movie
+[01:22:36] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:22:37] Limpando barra de busca com Ctrl+A e Delete.
+[01:22:37] Digitando busca letra por letra.
+[01:22:39] Pressionando Enter para pesquisar.
+[01:22:39] Aguardando 5.73s ate a proxima busca.
+[01:22:45] Busca 17 de 20...
+[01:22:45] Buscando 1 palavra(s) na API.
+[01:22:45] API de palavras falhou. Usando palavras locais.
+[01:22:45] Palavras locais escolhidas: ['space']
+[01:22:45] Texto da busca 17: space
+[01:22:45] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:22:46] Limpando barra de busca com Ctrl+A e Delete.
+[01:22:46] Digitando busca letra por letra.
+[01:22:48] Pressionando Enter para pesquisar.
+[01:22:48] Aguardando 6.56s ate a proxima busca.
+[01:22:54] Busca 18 de 20...
+[01:22:54] Buscando 2 palavra(s) na API.
+[01:22:55] API de palavras falhou. Usando palavras locais.
+[01:22:55] Palavras locais escolhidas: ['movie', 'language']
+[01:22:55] Texto da busca 18: movie language
+[01:22:55] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:22:55] Limpando barra de busca com Ctrl+A e Delete.
+[01:22:56] Digitando busca letra por letra.
+[01:23:00] Pressionando Enter para pesquisar.
+[01:23:00] Aguardando 7.95s ate a proxima busca.
+[01:23:08] Busca 19 de 20...
+[01:23:08] Buscando 1 palavra(s) na API.
+[01:23:08] API de palavras falhou. Usando palavras locais.
+[01:23:08] Palavras locais escolhidas: ['garden']
+[01:23:08] Texto da busca 19: garden
+[01:23:08] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:23:09] Limpando barra de busca com Ctrl+A e Delete.
+[01:23:10] Digitando busca letra por letra.
+[01:23:11] Pressionando Enter para pesquisar.
+[01:23:12] Aguardando 7.70s ate a proxima busca.
+[01:23:19] Busca 20 de 20...
+[01:23:19] Buscando 2 palavra(s) na API.
+[01:23:20] API de palavras falhou. Usando palavras locais.
+[01:23:20] Palavras locais escolhidas: ['music', 'space']
+[01:23:20] Texto da busca 20: music space
+[01:23:20] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[01:23:21] Limpando barra de busca com Ctrl+A e Delete.
+[01:23:21] Digitando busca letra por letra.
+[01:23:24] Pressionando Enter para pesquisar.
+[01:23:24] Aguardando 6.62s ate a proxima busca.
+[01:23:31] Pesquisar com o Bing concluído.
+[01:23:31] Abrindo Brotato pelo menu iniciar: Brotato
+[01:23:33] Aguardando Brotato iniciar por 25.0s.
+[01:23:58] Procurando Gamer Tag do Brotato (120s restantes)...
+[01:23:58] Rodando deteccao do alvo 'brotato_gamertag' com 25 template(s), confianca 0.82, match forte 0.95.
+[01:23:58] Alvo 'brotato_gamertag' retornou 1 resultado(s).
+[01:23:58] Melhor alvo 'brotato_gamertag': x=359, y=258, score=1.00.
+[01:23:58] Brotato no menu detectado: x=359, y=258, score=1.00.
+[01:23:58] Brotato aberto para rodar junto com Navegar com Edge.
+[01:23:58] Abrindo Edge para iniciar tempo no navegador...
+[01:23:58] Pressionando tecla Windows.
+[01:23:59] Digitando app no menu iniciar: EDGE
+[01:24:00] Pressionando Enter para abrir o app.
+[01:24:00] Aguardando Edge abrir por 4.00s.
+[01:24:04] Navegar com Edge: tentativa 1/3. Video ficara aberto por 36.0 minuto(s).
+[01:24:04] Abrindo video no Edge: https://www.youtube.com/watch?v=jfKfPfyJRdk
+[01:24:05] Aguardando video carregar por 8.0s.
+[01:24:13] Aguardando tempo no Edge (1/3): faltam 36.0 minuto(s).
+[01:25:13] Aguardando tempo no Edge (1/3): faltam 35.0 minuto(s).
+[01:26:13] Aguardando tempo no Edge (1/3): faltam 34.0 minuto(s).
+[01:27:13] Aguardando tempo no Edge (1/3): faltam 33.0 minuto(s).
+[01:28:14] Aguardando tempo no Edge (1/3): faltam 32.0 minuto(s).
+[01:29:14] Aguardando tempo no Edge (1/3): faltam 31.0 minuto(s).
+[01:30:14] Aguardando tempo no Edge (1/3): faltam 30.0 minuto(s).
+[01:31:14] Aguardando tempo no Edge (1/3): faltam 29.0 minuto(s).
+[01:32:14] Aguardando tempo no Edge (1/3): faltam 28.0 minuto(s).
+[01:33:14] Aguardando tempo no Edge (1/3): faltam 27.0 minuto(s).
+[01:34:14] Aguardando tempo no Edge (1/3): faltam 26.0 minuto(s).
+[01:35:14] Aguardando tempo no Edge (1/3): faltam 25.0 minuto(s).
+[01:36:14] Aguardando tempo no Edge (1/3): faltam 24.0 minuto(s).
+[01:37:14] Aguardando tempo no Edge (1/3): faltam 23.0 minuto(s).
+[01:38:14] Aguardando tempo no Edge (1/3): faltam 22.0 minuto(s).
+[01:39:14] Aguardando tempo no Edge (1/3): faltam 21.0 minuto(s).
+[01:40:14] Aguardando tempo no Edge (1/3): faltam 20.0 minuto(s).
+[01:41:14] Aguardando tempo no Edge (1/3): faltam 19.0 minuto(s).
+[01:42:14] Aguardando tempo no Edge (1/3): faltam 18.0 minuto(s).
+[01:43:14] Aguardando tempo no Edge (1/3): faltam 17.0 minuto(s).
+[01:44:14] Aguardando tempo no Edge (1/3): faltam 16.0 minuto(s).
+[01:45:14] Aguardando tempo no Edge (1/3): faltam 15.0 minuto(s).
+[01:46:14] Aguardando tempo no Edge (1/3): faltam 14.0 minuto(s).
+[01:47:14] Aguardando tempo no Edge (1/3): faltam 13.0 minuto(s).
+[01:48:14] Aguardando tempo no Edge (1/3): faltam 12.0 minuto(s).
+[01:49:14] Aguardando tempo no Edge (1/3): faltam 11.0 minuto(s).
+[01:50:14] Aguardando tempo no Edge (1/3): faltam 10.0 minuto(s).
+[01:51:14] Aguardando tempo no Edge (1/3): faltam 9.0 minuto(s).
+[01:52:14] Aguardando tempo no Edge (1/3): faltam 8.0 minuto(s).
+[01:53:14] Aguardando tempo no Edge (1/3): faltam 7.0 minuto(s).
+[01:54:14] Aguardando tempo no Edge (1/3): faltam 6.0 minuto(s).
+[01:55:14] Aguardando tempo no Edge (1/3): faltam 5.0 minuto(s).
+[01:56:14] Aguardando tempo no Edge (1/3): faltam 4.0 minuto(s).
+[01:57:14] Aguardando tempo no Edge (1/3): faltam 3.0 minuto(s).
+[01:58:14] Aguardando tempo no Edge (1/3): faltam 2.0 minuto(s).
+[01:59:14] Aguardando tempo no Edge (1/3): faltam 1.0 minuto(s).
+[02:00:14] Brotato aberto antes da verificacao. Vou fechar primeiro.
+[02:00:14] Fechando Brotato com Alt+F4...
+[02:00:14] Brotato focado pela janela aberta: Brotato
+[02:00:17] Brotato fechado.
+[02:00:17] Refocando Edge antes de fechar e verificar o Rewards...
+[02:00:17] Pressionando tecla Windows.
+[02:00:18] Digitando app no menu iniciar: EDGE
+[02:00:18] Pressionando Enter para abrir o app.
+[02:00:19] Aguardando Edge abrir por 4.00s.
+[02:00:23] Fechando janela atual do Edge para forcar atualizacao do Rewards...
+[02:00:25] Reabrindo Edge para verificar task Navegar com Edge...
+[02:00:25] Pressionando tecla Windows.
+[02:00:26] Digitando app no menu iniciar: EDGE
+[02:00:26] Pressionando Enter para abrir o app.
+[02:00:27] Aguardando Edge abrir por 4.00s.
+[02:00:33] Abrindo menu do Microsoft Rewards para checar progresso...
+[02:00:33] Abrindo extensao por deteccao de imagem.
+[02:00:33] Usando coordenada em cache para alvo visual 'icone_extensao': x=-312, y=69.
+[02:00:33] Clicando alvo visual 'icone_extensao': x=-312, y=69.
+[02:00:36] Procurando botao 'Ver tudo' para abrir detalhes do Rewards.
+[02:00:36] Rodando deteccao do alvo 'ver_tudo' com 33 template(s), confianca 0.82, match forte 0.95.
+[02:01:04] Alvo 'ver_tudo' retornou 0 resultado(s).
+[02:01:04] Nao consegui verificar o tempo do Edge. Treine os estados do tracker e tente novamente.
+[02:01:04] Finalizando thread do fluxo completo.

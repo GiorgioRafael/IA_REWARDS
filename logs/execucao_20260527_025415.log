@@ -1,0 +1,104 @@
+[02:54:15] ======================================================================
+[02:54:15] Modo timer iniciado
+[02:54:15] Arquivo de log: C:\Users\giorg\Documents\GitHub\AI_REWARDS\logs\execucao_20260527_025415.log
+[02:54:15] ======================================================================
+[02:54:15] Timer iniciado. Aguardando 1h.
+[02:54:15] Timer automatico: faltam 1h.
+[02:55:15] Timer automatico: faltam 59min.
+[02:56:15] Timer automatico: faltam 58min.
+[02:57:15] Timer automatico: faltam 57min.
+[02:58:15] Timer automatico: faltam 56min.
+[02:59:15] Timer automatico: faltam 55min.
+[03:00:15] Timer automatico: faltam 54min.
+[03:01:15] Timer automatico: faltam 53min.
+[03:02:15] Timer automatico: faltam 52min.
+[03:03:15] Timer automatico: faltam 51min.
+[03:04:15] Timer automatico: faltam 50min.
+[03:05:15] Timer automatico: faltam 49min.
+[03:06:15] Timer automatico: faltam 48min.
+[03:07:15] Timer automatico: faltam 47min.
+[03:08:15] Timer automatico: faltam 46min.
+[03:09:15] Timer automatico: faltam 45min.
+[03:10:15] Timer automatico: faltam 44min.
+[03:11:15] Timer automatico: faltam 43min.
+[03:12:15] Timer automatico: faltam 42min.
+[03:13:16] Timer automatico: faltam 41min.
+[03:14:16] Timer automatico: faltam 40min.
+[03:15:16] Timer automatico: faltam 38min 59s.
+[03:16:16] Timer automatico: faltam 37min 59s.
+[03:17:16] Timer automatico: faltam 36min 59s.
+[03:18:16] Timer automatico: faltam 35min 59s.
+[03:19:16] Timer automatico: faltam 34min 59s.
+[03:20:16] Timer automatico: faltam 33min 59s.
+[03:21:16] Timer automatico: faltam 32min 59s.
+[03:22:16] Timer automatico: faltam 31min 59s.
+[03:23:16] Timer automatico: faltam 30min 59s.
+[03:24:16] Timer automatico: faltam 29min 59s.
+[03:25:16] Timer automatico: faltam 28min 59s.
+[03:26:16] Timer automatico: faltam 27min 59s.
+[03:27:16] Timer automatico: faltam 26min 59s.
+[03:28:16] Timer automatico: faltam 25min 59s.
+[03:29:16] Timer automatico: faltam 24min 59s.
+[03:30:16] Timer automatico: faltam 23min 59s.
+[03:31:16] Timer automatico: faltam 22min 59s.
+[03:32:16] Timer automatico: faltam 21min 59s.
+[03:33:16] Timer automatico: faltam 20min 59s.
+[03:34:16] Timer automatico: faltam 19min 59s.
+[03:35:16] Timer automatico: faltam 18min 59s.
+[03:36:16] Timer automatico: faltam 17min 59s.
+[03:37:16] Timer automatico: faltam 16min 59s.
+[03:38:16] Timer automatico: faltam 15min 59s.
+[03:39:16] Timer automatico: faltam 14min 59s.
+[03:40:16] Timer automatico: faltam 13min 59s.
+[03:41:16] Timer automatico: faltam 12min 59s.
+[03:42:16] Timer automatico: faltam 11min 59s.
+[03:43:16] Timer automatico: faltam 10min 59s.
+[03:44:16] Timer automatico: faltam 9min 59s.
+[03:45:16] Timer automatico: faltam 8min 59s.
+[03:46:16] Timer automatico: faltam 7min 59s.
+[03:47:16] Timer automatico: faltam 6min 59s.
+[03:48:16] Timer automatico: faltam 5min 59s.
+[03:49:16] Timer automatico: faltam 4min 59s.
+[03:50:17] Timer automatico: faltam 3min 59s.
+[03:51:17] Timer automatico: faltam 2min 59s.
+[03:52:17] Timer automatico: faltam 1min 59s.
+[03:53:17] Timer automatico: faltam 59s.
+[03:54:15] Timer concluido. Iniciando fluxo selecionado...
+[03:54:15] Preparando automacao completa.
+[03:54:15] Abrindo Brotato pelo menu iniciar: Brotato
+[03:54:17] Aguardando Brotato iniciar por 25.0s.
+[03:54:42] Procurando Gamer Tag do Brotato (120s restantes)...
+[03:54:42] Rodando deteccao do alvo 'brotato_gamertag' com 25 template(s), confianca 0.82, match forte 0.95.
+[03:54:43] Alvo 'brotato_gamertag' retornou 1 resultado(s).
+[03:54:43] Melhor alvo 'brotato_gamertag': x=359, y=258, score=0.97.
+[03:54:43] Brotato no menu detectado: x=359, y=258, score=0.97.
+[03:54:43] Minimizando Brotato pelo icone da barra de tarefas...
+[03:54:43] Rodando deteccao do alvo 'brotato_icone_barra' com 29 template(s), confianca 0.82, match forte 0.95.
+[03:54:46] Alvo 'brotato_icone_barra' retornou 1 resultado(s).
+[03:54:46] Melhor alvo 'brotato_icone_barra': x=1249, y=1054, score=0.99.
+[03:54:46] Coordenada do alvo visual 'brotato_icone_barra' salva no cache desta execucao.
+[03:54:46] Clicando alvo visual 'brotato_icone_barra': x=1249, y=1054.
+[03:54:47] Brotato ficara aberto por 17.0 minuto(s).
+[03:54:47] Timer Brotato: faltam 17min.
+[03:55:47] Timer Brotato: faltam 16min.
+[03:56:47] Timer Brotato: faltam 15min.
+[03:57:47] Timer Brotato: faltam 14min.
+[03:58:47] Timer Brotato: faltam 13min.
+[03:59:48] Timer Brotato: faltam 12min.
+[04:00:48] Timer Brotato: faltam 11min.
+[04:01:48] Timer Brotato: faltam 10min.
+[04:02:48] Timer Brotato: faltam 9min.
+[04:03:48] Timer Brotato: faltam 8min.
+[04:04:48] Timer Brotato: faltam 7min.
+[04:05:48] Timer Brotato: faltam 6min.
+[04:06:48] Timer Brotato: faltam 5min.
+[04:07:48] Timer Brotato: faltam 4min.
+[04:08:48] Timer Brotato: faltam 3min.
+[04:09:48] Timer Brotato: faltam 2min.
+[04:10:48] Timer Brotato: faltam 1min.
+[04:11:47] Fechando Brotato com Alt+F4...
+[04:11:48] Brotato focado pela janela aberta: Brotato
+[04:11:51] Brotato fechado.
+[04:11:51] Fluxo selecionado concluido.
+[04:11:51] Finalizando thread do fluxo completo.
+[04:11:51] Fluxo concluido. Desligando o computador em 30 segundo(s).

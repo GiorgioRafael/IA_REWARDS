@@ -1,0 +1,21 @@
+[23:47:32] ======================================================================
+[23:47:32] Fluxo selecionado iniciado
+[23:47:32] Arquivo de log: C:\Users\giorg\Documents\GitHub\AI_REWARDS\logs\execucao_20260526_234732.log
+[23:47:32] ======================================================================
+[23:47:32] Iniciando fluxo selecionado...
+[23:47:32] Preparando automacao completa.
+[23:47:32] Abrindo Brotato pelo menu iniciar: Brotato
+[23:47:34] Aguardando Brotato iniciar por 25.0s.
+[23:47:59] Procurando Gamer Tag do Brotato (120s restantes)...
+[23:47:59] Rodando deteccao do alvo 'brotato_gamertag' com 25 template(s), confianca 0.82, match forte 0.95.
+[23:48:01] Alvo 'brotato_gamertag' retornou 1 resultado(s).
+[23:48:01] Melhor alvo 'brotato_gamertag': x=368, y=250, score=1.00.
+[23:48:01] Brotato no menu detectado: x=368, y=250, score=1.00.
+[23:48:01] Brotato ficara aberto por 17.0 minuto(s).
+[23:48:01] Timer Brotato: faltam 17.0 minuto(s).
+[23:48:17] Automacao pausada. Clique em Resumir para continuar.
+[23:48:17] Automacao retomada.
+[23:48:18] Automacao pausada. Clique em Resumir para continuar.
+[23:48:19] Cancelando automacao...
+[23:48:19] Automacao interrompida durante timer do Brotato.
+[23:48:19] Finalizando thread do fluxo completo.

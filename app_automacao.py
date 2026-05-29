@@ -5,6 +5,7 @@ import random
 import subprocess
 import threading
 import time
+from ctypes import wintypes
 
 
 def ativar_dpi_awareness():
@@ -59,6 +60,47 @@ from deteccao_imagem import (
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = BASE_DIR / "config.json"
 LOGS_DIR = BASE_DIR / "logs"
+SW_RESTORE = 9
+
+
+def focar_janela_por_titulo(parte_titulo):
+    try:
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        alvo = (parte_titulo or "").strip().lower()
+        if not alvo:
+            return None
+
+        encontrados = []
+
+        def visitar_janela(hwnd, _lparam):
+            if not user32.IsWindowVisible(hwnd):
+                return True
+
+            tamanho = user32.GetWindowTextLengthW(hwnd)
+            if tamanho <= 0:
+                return True
+
+            buffer = ctypes.create_unicode_buffer(tamanho + 1)
+            user32.GetWindowTextW(hwnd, buffer, tamanho + 1)
+            titulo = buffer.value.strip()
+            if alvo in titulo.lower():
+                encontrados.append((hwnd, titulo))
+                return False
+
+            return True
+
+        user32.EnumWindows(enum_proc(visitar_janela), 0)
+        if not encontrados:
+            return None
+
+        hwnd, titulo = encontrados[0]
+        user32.ShowWindow(hwnd, SW_RESTORE)
+        time.sleep(0.2)
+        user32.SetForegroundWindow(hwnd)
+        return titulo
+    except Exception:
+        return None
 
 DEFAULT_CONFIG = {
     "app_busca": "EDGE",
@@ -214,8 +256,8 @@ DEFAULT_CONFIG = {
             "treino_dir": "assets/treino_brotato_icone_barra",
             "confianca": 0.82,
             "score_forte": 0.95,
-            "capture_width": 70,
-            "capture_height": 60,
+            "capture_width": 36,
+            "capture_height": 36,
             "click_offset_x": 0,
             "click_offset_y": 0,
             "regiao": {"x": None, "y": None, "width": None, "height": None},
@@ -247,6 +289,12 @@ DEFAULT_CONFIG = {
         "delay_apos_enter": 10,
         "menu_timeout_segundos": 120,
         "fechar_timeout_segundos": 20,
+    },
+    "timer_automatico": {
+        "horas": 0,
+        "minutos": 0,
+        "segundos": 0,
+        "desligar_delay_segundos": 30,
     },
 }
 
@@ -440,10 +488,12 @@ class AutoRewardsApp:
         self.exec_tab = ttk.Frame(self.notebook, padding="10")
         self.config_tab = ttk.Frame(self.notebook, padding="10")
         self.treino_tab = ttk.Frame(self.notebook, padding="10")
+        self.debug_tab = ttk.Frame(self.notebook, padding="10")
 
-        self.notebook.add(self.exec_tab, text="Execucao")
-        self.notebook.add(self.config_tab, text="Configuracoes")
+        self.notebook.add(self.exec_tab, text="Execução")
+        self.notebook.add(self.config_tab, text="Configurações")
         self.notebook.add(self.treino_tab, text="Treinos e testes")
+        self.notebook.add(self.debug_tab, text="Debug")
 
         self.config_notebook = ttk.Notebook(self.config_tab)
         self.config_notebook.pack(fill="both", expand=True)
@@ -454,11 +504,11 @@ class AutoRewardsApp:
         deteccao_container, self.deteccao_tab = self.criar_aba_rolavel(self.config_notebook)
         advanced_container, self.advanced_tab = self.criar_aba_rolavel(self.config_notebook)
 
-        self.config_notebook.add(search_container, text="Pesquisas")
-        self.config_notebook.add(edge_container, text="Tempo Edge")
-        self.config_notebook.add(brotato_container, text="Brotato")
-        self.config_notebook.add(deteccao_container, text="Deteccao de imagem")
-        self.config_notebook.add(advanced_container, text="Avancado")
+        self.config_notebook.add(search_container, text="Pesquisar com o Bing")
+        self.config_notebook.add(edge_container, text="Navegar com Edge")
+        self.config_notebook.add(brotato_container, text="Jogar PC (Brotato)")
+        self.config_notebook.add(deteccao_container, text="Detecção de imagem")
+        self.config_notebook.add(advanced_container, text="Avançado")
 
         self.treino_notebook = ttk.Notebook(self.treino_tab)
         self.treino_notebook.pack(fill="both", expand=True)
@@ -469,7 +519,7 @@ class AutoRewardsApp:
 
         self.treino_notebook.add(visual_container, text="Alvos visuais")
         self.treino_notebook.add(bonus_container, text="Bonus +10/+5")
-        self.treino_notebook.add(tracker_container, text="Tempo Edge")
+        self.treino_notebook.add(tracker_container, text="Navegar com Edge")
 
         self.setup_pesquisas_tab()
         self.setup_conjunto_tab()
@@ -488,7 +538,7 @@ class AutoRewardsApp:
 
         ttk.Label(
             status_frame,
-            text="Pressione ESC para pausar. Use Resumir ou Cancelar na aba Execucao.",
+            text="Pressione ESC para pausar. Use Resumir ou Cancelar na aba Execução.",
             foreground="gray",
         ).pack(pady=(8, 0))
 
@@ -522,6 +572,7 @@ class AutoRewardsApp:
         pesquisas = self.config["pesquisas"]
         edge_tempo = self.config.get("edge_tempo", {})
         brotato = self.config.get("brotato", {})
+        timer_automatico = self.config.get("timer_automatico", {})
 
         self.searches_var = tk.StringVar(value=str(pesquisas["search_count"]))
         self.desktop_x_var = tk.StringVar(value=str(pesquisas["desktop_coords"]["x"]))
@@ -589,6 +640,15 @@ class AutoRewardsApp:
         self.brotato_fechar_timeout_var = tk.StringVar(
             value=str(brotato.get("fechar_timeout_segundos", 20))
         )
+        self.timer_horas_var = tk.StringVar(
+            value=str(timer_automatico.get("horas", 0))
+        )
+        self.timer_minutos_var = tk.StringVar(
+            value=str(timer_automatico.get("minutos", 0))
+        )
+        self.timer_segundos_var = tk.StringVar(
+            value=str(timer_automatico.get("segundos", 0))
+        )
 
         fluxo_frame = ttk.LabelFrame(
             self.exec_tab, text="O que executar", padding="10"
@@ -597,36 +657,66 @@ class AutoRewardsApp:
 
         ttk.Checkbutton(
             fluxo_frame,
-            text="Conjunto diario",
+            text="Conjunto diário",
             variable=self.executar_conjunto_var,
         ).grid(row=0, column=0, sticky="w", padx=5, pady=5)
 
         ttk.Checkbutton(
             fluxo_frame,
-            text="Pesquisas",
+            text="Pesquisar com o Bing",
             variable=self.executar_pesquisas_var,
         ).grid(row=0, column=1, sticky="w", padx=5, pady=5)
 
         ttk.Checkbutton(
             fluxo_frame,
-            text="Tempo no Edge",
+            text="Navegar com Edge",
             variable=self.executar_edge_tempo_var,
         ).grid(row=0, column=2, sticky="w", padx=5, pady=5)
 
         ttk.Checkbutton(
             fluxo_frame,
-            text="Brotato / Game Pass",
+            text="Jogar PC (Brotato)",
             variable=self.executar_brotato_var,
         ).grid(row=1, column=0, sticky="w", padx=5, pady=5)
 
+        debug_frame = ttk.LabelFrame(
+            self.debug_tab, text="Debug > Log em tempo real", padding="10"
+        )
+        debug_frame.pack(fill="x", pady=(0, 10))
         ttk.Checkbutton(
-            fluxo_frame,
+            debug_frame,
             text="Mostrar CMD de debug em tempo real",
             variable=self.abrir_cmd_debug_var,
-        ).grid(row=1, column=1, columnspan=2, sticky="w", padx=5, pady=5)
+        ).pack(anchor="w", padx=5, pady=5)
+
+        timer_frame = ttk.LabelFrame(
+            self.exec_tab, text="Modo timer", padding="10"
+        )
+        timer_frame.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(timer_frame, text="Esperar:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(timer_frame, textvariable=self.timer_horas_var, width=6).grid(
+            row=0, column=1, sticky="w", padx=5, pady=5
+        )
+        ttk.Label(timer_frame, text="h").grid(row=0, column=2, sticky="w")
+        ttk.Entry(timer_frame, textvariable=self.timer_minutos_var, width=6).grid(
+            row=0, column=3, sticky="w", padx=5, pady=5
+        )
+        ttk.Label(timer_frame, text="min").grid(row=0, column=4, sticky="w")
+        ttk.Entry(timer_frame, textvariable=self.timer_segundos_var, width=6).grid(
+            row=0, column=5, sticky="w", padx=5, pady=5
+        )
+        ttk.Label(timer_frame, text="s").grid(row=0, column=6, sticky="w")
+        ttk.Label(
+            timer_frame,
+            text="Ao terminar a espera, roda o fluxo selecionado e desliga o computador.",
+            foreground="gray",
+        ).grid(row=1, column=0, columnspan=7, sticky="w", padx=5, pady=(2, 0))
 
         pesquisas_frame = ttk.LabelFrame(
-            self.search_tab, text="Pesquisas > Configuracao", padding="10"
+            self.search_tab, text="Pesquisar com o Bing > Configuração", padding="10"
         )
         pesquisas_frame.pack(fill="x", pady=(0, 10))
 
@@ -643,7 +733,7 @@ class AutoRewardsApp:
             variable=self.usar_ctrl_l_desktop_var,
         ).grid(row=1, column=0, columnspan=4, sticky="w", padx=5, pady=5)
 
-        ttk.Label(pesquisas_frame, text="Pausa apos conjunto diario:").grid(
+        ttk.Label(pesquisas_frame, text="Pausa após Conjunto diário:").grid(
             row=2, column=0, sticky="w", padx=5, pady=5
         )
         ttk.Entry(
@@ -683,14 +773,14 @@ class AutoRewardsApp:
         )
 
         edge_tempo_frame = ttk.LabelFrame(
-            self.edge_tempo_tab, text="Tempo Edge > Video e verificacao", padding="10"
+            self.edge_tempo_tab, text="Navegar com Edge > Vídeo e verificação", padding="10"
         )
         edge_tempo_frame.pack(fill="x", pady=10)
         edge_tempo_frame.columnconfigure(1, weight=1)
 
         ttk.Checkbutton(
             edge_tempo_frame,
-            text="Executar tempo no Edge depois das etapas selecionadas",
+            text="Executar Navegar com Edge depois das etapas selecionadas",
             variable=self.executar_edge_tempo_var,
         ).grid(row=0, column=0, columnspan=4, sticky="w", padx=5, pady=5)
 
@@ -722,14 +812,14 @@ class AutoRewardsApp:
         )
 
         brotato_frame = ttk.LabelFrame(
-            self.brotato_tab, text="Brotato > Xbox Game Pass", padding="10"
+            self.brotato_tab, text="Jogar PC (Brotato) > Xbox Game Pass", padding="10"
         )
         brotato_frame.pack(fill="x", pady=10)
         brotato_frame.columnconfigure(1, weight=1)
 
         ttk.Checkbutton(
             brotato_frame,
-            text="Executar Brotato / Game Pass",
+            text="Executar Jogar PC (Brotato)",
             variable=self.executar_brotato_var,
         ).grid(row=0, column=0, columnspan=4, sticky="w", padx=5, pady=5)
 
@@ -770,15 +860,15 @@ class AutoRewardsApp:
         ttk.Label(
             brotato_frame,
             text=(
-                "Com Tempo no Edge ativo, o jogo abre antes da espera do Edge e fecha "
-                "antes da verificacao do Rewards. O timer de 17 minutos e usado apenas sem Edge."
+                "Com Navegar com Edge ativo, o jogo abre antes da espera do Edge e fecha "
+                "antes da verificação do Rewards. O timer de 17 minutos é usado apenas sem Edge."
             ),
             foreground="gray",
             wraplength=620,
         ).grid(row=5, column=0, columnspan=4, sticky="w", padx=5, pady=(8, 3))
 
         coords_frame = ttk.LabelFrame(
-            self.search_tab, text="Pesquisas > Barra de busca", padding="10"
+            self.search_tab, text="Pesquisar com o Bing > Barra de busca", padding="10"
         )
         coords_frame.pack(fill="x", pady=10)
 
@@ -797,6 +887,7 @@ class AutoRewardsApp:
         self.exec_action_frame.columnconfigure(0, weight=1)
         self.exec_action_frame.columnconfigure(1, weight=1)
         self.exec_action_frame.columnconfigure(2, weight=1)
+        self.exec_action_frame.columnconfigure(3, weight=1)
 
         self.start_button = ttk.Button(
             self.exec_action_frame,
@@ -805,11 +896,18 @@ class AutoRewardsApp:
         )
         self.start_button.grid(row=0, column=0, padx=5, sticky="ew")
 
+        self.timer_button = ttk.Button(
+            self.exec_action_frame,
+            text="Iniciar timer",
+            command=self.start_timer_automatico_thread,
+        )
+        self.timer_button.grid(row=0, column=1, padx=5, sticky="ew")
+
         ttk.Button(
             self.exec_action_frame,
             text="Salvar configuracoes",
             command=self.save_config,
-        ).grid(row=0, column=2, padx=5, sticky="ew")
+        ).grid(row=0, column=3, padx=5, sticky="ew")
 
         self.pause_button = ttk.Button(
             self.exec_action_frame,
@@ -911,7 +1009,7 @@ class AutoRewardsApp:
 
         ttk.Label(
             modo_frame,
-            text="Escolha um modo para executar o conjunto diario:",
+            text="Escolha um modo para executar o Conjunto diário:",
         ).grid(row=0, column=0, columnspan=4, sticky="w", padx=5, pady=(3, 6))
 
         ttk.Radiobutton(
@@ -1127,10 +1225,10 @@ class AutoRewardsApp:
 
         self.conjunto_button = ttk.Button(
             self.exec_action_frame,
-            text="Rodar so conjunto diario",
+            text="Rodar só Conjunto diário",
             command=self.start_conjunto_thread,
         )
-        self.conjunto_button.grid(row=0, column=1, padx=5, sticky="ew")
+        self.conjunto_button.grid(row=0, column=2, padx=5, sticky="ew")
 
     def add_xy_row(self, parent, row, label, x_var, y_var):
         ttk.Label(parent, text=f"{label}:").grid(
@@ -2292,6 +2390,12 @@ class AutoRewardsApp:
         except ValueError as exc:
             raise ValueError(f"{nome} precisa ser um numero inteiro.") from exc
 
+    def parse_int_nao_negativo(self, var, nome):
+        valor = self.parse_int(var, nome)
+        if valor < 0:
+            raise ValueError(f"{nome} nao pode ser negativo.")
+        return valor
+
     def parse_int_or_none(self, var, nome):
         valor = var.get().strip()
         if valor == "":
@@ -2417,7 +2521,7 @@ class AutoRewardsApp:
             pesquisas["delay_apos_conjunto_diario"] = self.parse_intervalo(
                 self.delay_apos_conjunto_min_var,
                 self.delay_apos_conjunto_max_var,
-                "Pausa apos conjunto diario",
+                "Pausa após Conjunto diário",
             )
             pesquisas["delay_entre_buscas"] = self.parse_intervalo(
                 self.delay_busca_min_var,
@@ -2479,6 +2583,18 @@ class AutoRewardsApp:
                 raise ValueError("Timeout menu Brotato precisa ser maior que zero.")
             if brotato["fechar_timeout_segundos"] <= 0:
                 raise ValueError("Timeout fechar Brotato precisa ser maior que zero.")
+
+            timer_automatico = self.config.setdefault("timer_automatico", {})
+            timer_automatico["horas"] = self.parse_int_nao_negativo(
+                self.timer_horas_var, "Timer horas"
+            )
+            timer_automatico["minutos"] = self.parse_int_nao_negativo(
+                self.timer_minutos_var, "Timer minutos"
+            )
+            timer_automatico["segundos"] = self.parse_int_nao_negativo(
+                self.timer_segundos_var, "Timer segundos"
+            )
+            timer_automatico.setdefault("desligar_delay_segundos", 30)
 
             self.salvar_json(self.config)
             self.update_status("Configuracoes salvas com sucesso.", "green")
@@ -2573,6 +2689,7 @@ class AutoRewardsApp:
             cancel_state = "normal" if running else "disabled"
 
             self.start_button.config(state=principal_state)
+            self.timer_button.config(state=principal_state)
             self.conjunto_button.config(state=principal_state)
             self.pause_button.config(state=pause_state)
             self.resume_button.config(state=resume_state)
@@ -2634,6 +2751,27 @@ class AutoRewardsApp:
 
         return not self.stop_automation.is_set()
 
+    def fluxo_selecionado_existe(self):
+        pesquisas = self.config["pesquisas"]
+        return (
+            pesquisas["executar_conjunto_diario"]
+            or pesquisas.get("executar_pesquisas", True)
+            or self.config.get("edge_tempo", {}).get("executar", False)
+            or self.config.get("brotato", {}).get("executar", False)
+        )
+
+    def validar_fluxo_selecionado(self):
+        if self.fluxo_selecionado_existe():
+            return True
+
+        messagebox.showwarning(
+            "Nenhuma funcao selecionada",
+            "Selecione pelo menos uma funcao primaria: Conjunto diario, "
+            "Pesquisar com o Bing, Navegar com Edge ou Jogar PC (Brotato).",
+            parent=self.root,
+        )
+        return False
+
     def start_fluxo_completo_thread(self):
         if not self.save_config():
             return
@@ -2648,8 +2786,8 @@ class AutoRewardsApp:
             and not executar_brotato
         ):
             messagebox.showwarning(
-                "Nenhuma funcao selecionada",
-                "Selecione pelo menos uma funcao primaria: conjunto diario, pesquisas, tempo no Edge ou Brotato.",
+                "Nenhuma função selecionada",
+                "Selecione pelo menos uma função primária: Conjunto diário, Pesquisar com o Bing, Navegar com Edge ou Jogar PC (Brotato).",
                 parent=self.root,
             )
             return
@@ -2667,12 +2805,44 @@ class AutoRewardsApp:
         thread = threading.Thread(target=self.fluxo_completo, daemon=True)
         thread.start()
 
-    def start_conjunto_thread(self):
+    def total_segundos_timer_automatico(self):
+        timer_automatico = self.config.get("timer_automatico", {})
+        horas = int(timer_automatico.get("horas", 0))
+        minutos = int(timer_automatico.get("minutos", 0))
+        segundos = int(timer_automatico.get("segundos", 0))
+        return horas * 3600 + minutos * 60 + segundos
+
+    def formatar_duracao(self, total_segundos):
+        total_segundos = max(0, int(total_segundos))
+        horas, resto = divmod(total_segundos, 3600)
+        minutos, segundos = divmod(resto, 60)
+        partes = []
+        if horas:
+            partes.append(f"{horas}h")
+        if minutos:
+            partes.append(f"{minutos}min")
+        if segundos or not partes:
+            partes.append(f"{segundos}s")
+        return " ".join(partes)
+
+    def start_timer_automatico_thread(self):
         if not self.save_config():
             return
 
+        if not self.validar_fluxo_selecionado():
+            return
+
+        total_segundos = self.total_segundos_timer_automatico()
+        if total_segundos <= 0:
+            messagebox.showwarning(
+                "Timer invalido",
+                "Configure um tempo maior que zero para iniciar o modo timer.",
+                parent=self.root,
+            )
+            return
+
         self.exec_logger.iniciar(
-            "Config conjunto diario",
+            "Modo timer",
             abrir_cmd=self.config.get("debug", {}).get("abrir_cmd", True),
         )
         limpar_cache_execucao(self.config)
@@ -2680,13 +2850,36 @@ class AutoRewardsApp:
         self.pause_automation.clear()
         self.stop_automation.pause_event = self.pause_automation
         self.set_running(True)
-        self.status_com_log("Iniciando somente o conjunto diario...")
+        self.status_com_log(
+            f"Timer iniciado. Aguardando {self.formatar_duracao(total_segundos)}."
+        )
+        thread = threading.Thread(
+            target=self.fluxo_timer_automatico,
+            args=(total_segundos,),
+            daemon=True,
+        )
+        thread.start()
+
+    def start_conjunto_thread(self):
+        if not self.save_config():
+            return
+
+        self.exec_logger.iniciar(
+            "Conjunto diário",
+            abrir_cmd=self.config.get("debug", {}).get("abrir_cmd", True),
+        )
+        limpar_cache_execucao(self.config)
+        self.stop_automation.clear()
+        self.pause_automation.clear()
+        self.stop_automation.pause_event = self.pause_automation
+        self.set_running(True)
+        self.status_com_log("Iniciando somente o Conjunto diário...")
         thread = threading.Thread(target=self.fluxo_conjunto_diario, daemon=True)
         thread.start()
 
     def fluxo_conjunto_diario(self):
         try:
-            self.log_execucao("Preparando automacao do conjunto diario.")
+            self.log_execucao("Preparando automação do Conjunto diário.")
             pa.FAILSAFE = True
             pa.PAUSE = 0.05
             coordenadas = carregar_coordenadas(self.config)
@@ -2700,16 +2893,61 @@ class AutoRewardsApp:
             )
 
             if concluido:
-                self.status_com_log("Config conjunto diario concluido.", "green")
+                self.status_com_log("Conjunto diário concluído.", "green")
             else:
                 self.status_com_log("Automacao interrompida.", "orange")
         except SystemExit as exc:
             self.status_com_log(str(exc), "red")
         except Exception as exc:
-            self.status_com_log(f"Erro no conjunto diario: {exc}", "red")
+            self.status_com_log(f"Erro no Conjunto diário: {exc}", "red")
         finally:
-            self.log_execucao("Finalizando thread do conjunto diario.")
+            self.log_execucao("Finalizando thread do Conjunto diário.")
             self.set_running(False)
+
+    def fluxo_timer_automatico(self, total_segundos):
+        fluxo_iniciado = False
+        try:
+            if not self.sleep_segundos_com_log(total_segundos, "Timer automatico"):
+                self.status_com_log("Timer cancelado pelo usuario.", "orange")
+                return
+
+            self.status_com_log("Timer concluido. Iniciando fluxo selecionado...")
+            fluxo_iniciado = True
+            concluido = self.fluxo_completo()
+            if concluido and not self.stop_automation.is_set():
+                self.desligar_computador()
+            else:
+                self.status_com_log(
+                    "Fluxo nao foi concluido com sucesso. O computador nao sera desligado.",
+                    "orange",
+                )
+        except Exception as exc:
+            self.status_com_log(f"Erro no modo timer: {exc}", "red")
+        finally:
+            if not fluxo_iniciado:
+                self.log_execucao("Finalizando thread do modo timer.")
+                self.set_running(False)
+
+    def desligar_computador(self):
+        delay = int(
+            self.config.get("timer_automatico", {}).get("desligar_delay_segundos", 30)
+        )
+        delay = max(0, delay)
+        self.status_com_log(
+            f"Fluxo concluido. Desligando o computador em {delay} segundo(s).",
+            "green",
+        )
+        subprocess.Popen(
+            [
+                "shutdown",
+                "/s",
+                "/t",
+                str(delay),
+                "/c",
+                "AI Rewards concluiu o fluxo selecionado pelo modo timer.",
+            ],
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
 
     def fluxo_completo(self):
         try:
@@ -2736,37 +2974,37 @@ class AutoRewardsApp:
 
                 if not concluido:
                     self.status_com_log("Automacao interrompida.", "orange")
-                    return
+                    return False
 
                 edge_aberto = True
                 if executar_pesquisas:
-                    self.status_com_log("Conjunto diario concluido. Iniciando pesquisas...")
+                    self.status_com_log("Conjunto diário concluído. Iniciando Pesquisar com o Bing...")
                     if not self.sleep_intervalo(
                         self.config["pesquisas"]["delay_apos_conjunto_diario"]
                     ):
                         self.status_com_log("Automacao interrompida pelo usuario.", "orange")
-                        return
+                        return False
                 else:
-                    self.status_com_log("Conjunto diario concluido. Pesquisas desativadas.", "green")
+                    self.status_com_log("Conjunto diário concluído. Pesquisar com o Bing desativado.", "green")
 
             if executar_pesquisas:
                 if not executar_conjunto:
-                    self.status_com_log("Abrindo Edge para executar somente pesquisas...")
+                    self.status_com_log("Abrindo Edge para executar somente Pesquisar com o Bing...")
                     if not abrir_edge(
                         self.config,
                         stop_event=self.stop_automation,
                         status_callback=self.status_com_log,
                     ):
                         self.status_com_log("Automacao interrompida ao abrir Edge.", "orange")
-                        return
+                        return False
                     edge_aberto = True
                 if not self.automation_search_logic():
-                    return
+                    return False
                 edge_aberto = True
 
             if executar_brotato and executar_edge_tempo:
                 if not self.executar_brotato_logic(com_timer=False):
-                    return
+                    return False
                 edge_aberto = False
 
             if executar_edge_tempo:
@@ -2774,19 +3012,23 @@ class AutoRewardsApp:
                     edge_ja_aberto=edge_aberto,
                     fechar_brotato_antes_verificar=executar_brotato,
                 ):
-                    return
+                    return False
             elif executar_brotato:
                 if not self.executar_brotato_logic(com_timer=True):
-                    return
+                    return False
 
             if not executar_conjunto and not executar_pesquisas and not executar_edge_tempo and not executar_brotato:
                 self.status_com_log("Nenhuma funcao primaria selecionada.", "orange")
-            else:
-                self.status_com_log("Fluxo selecionado concluido.", "green")
+                return False
+
+            self.status_com_log("Fluxo selecionado concluido.", "green")
+            return True
         except SystemExit as exc:
             self.status_com_log(str(exc), "red")
+            return False
         except Exception as exc:
             self.status_com_log(f"Erro na automacao: {exc}", "red")
+            return False
         finally:
             self.log_execucao("Finalizando thread do fluxo completo.")
             self.set_running(False)
@@ -2795,7 +3037,7 @@ class AutoRewardsApp:
         pesquisas = self.config["pesquisas"]
         num_searches = pesquisas["search_count"]
         delay_buscas = pesquisas["delay_entre_buscas"]
-        self.log_execucao(f"Iniciando sessao de pesquisas: {num_searches} busca(s).")
+        self.log_execucao(f"Iniciando Pesquisar com o Bing: {num_searches} busca(s).")
 
         for i in range(1, num_searches + 1):
             if not self.esperar_se_pausado():
@@ -2840,7 +3082,7 @@ class AutoRewardsApp:
                 self.status_com_log("Automacao interrompida pelo usuario.", "orange")
                 return False
         else:
-            self.status_com_log("Sessao de pesquisas concluida.", "green")
+            self.status_com_log("Pesquisar com o Bing concluído.", "green")
             return True
 
         return False
@@ -2915,7 +3157,7 @@ class AutoRewardsApp:
                     "green",
                 )
                 self.brotato_aberto = True
-                return True
+                return self.minimizar_brotato_pela_barra()
 
             restante -= time.time() - inicio
             pausa = min(2.0, restante)
@@ -2929,9 +3171,40 @@ class AutoRewardsApp:
         )
         return False
 
+    def minimizar_brotato_pela_barra(self):
+        if not listar_templates_alvo_visual(self.config, "brotato_icone_barra"):
+            self.status_com_log(
+                "Nenhum template treinado para o icone do Brotato na barra. Treine esse alvo antes de minimizar o jogo.",
+                "red",
+            )
+            return False
+
+        self.status_com_log("Minimizando Brotato pelo icone da barra de tarefas...")
+        if clicar_alvo_visual(
+            self.config,
+            "brotato_icone_barra",
+            stop_event=self.stop_automation,
+            status_callback=self.status_com_log,
+            safety_callback=self.confirmar_intervencao_mouse,
+        ):
+            return self.sleep_interruptivel(1.0)
+
+        self.status_com_log("Nao consegui minimizar o Brotato pelo icone da barra.", "red")
+        return False
+
     def focar_brotato_pela_barra(self):
         brotato = self.config.get("brotato", {})
+        app_busca = brotato.get("app_busca", "Brotato").strip() or "Brotato"
         timeout = float(brotato.get("fechar_timeout_segundos", 20))
+
+        titulo = focar_janela_por_titulo(app_busca)
+        if titulo:
+            self.status_com_log(f"Brotato focado pela janela aberta: {titulo}", "green")
+            return self.sleep_interruptivel(0.7)
+
+        self.log_execucao(
+            "Nao encontrei uma janela do Brotato pelo titulo. Tentando pelo icone da barra."
+        )
         if not listar_templates_alvo_visual(self.config, "brotato_icone_barra"):
             self.status_com_log(
                 "Nenhum template treinado para o icone do Brotato na barra. Treine esse alvo antes de fechar o jogo.",
@@ -2995,7 +3268,7 @@ class AutoRewardsApp:
             return False
 
         if not com_timer:
-            self.status_com_log("Brotato aberto para rodar junto com o Tempo no Edge.")
+            self.status_com_log("Brotato aberto para rodar junto com Navegar com Edge.")
             return True
 
         minutos = float(self.config.get("brotato", {}).get("tempo_minutos", 17))
@@ -3010,7 +3283,7 @@ class AutoRewardsApp:
         edge_tempo = self.config.get("edge_tempo", {})
         url_video = edge_tempo.get("url_video", "").strip()
         if not url_video:
-            self.status_com_log("Tempo Edge ativado, mas a URL do video esta vazia.", "red")
+            self.status_com_log("Navegar com Edge ativado, mas a URL do vídeo está vazia.", "red")
             return False
 
         primeira_espera = float(edge_tempo.get("primeira_espera_minutos", 36))
@@ -3030,7 +3303,7 @@ class AutoRewardsApp:
 
         for tentativa in range(1, max_tentativas + 1):
             self.status_com_log(
-                f"Tempo Edge: tentativa {tentativa}/{max_tentativas}. "
+                f"Navegar com Edge: tentativa {tentativa}/{max_tentativas}. "
                 f"Video ficara aberto por {espera_atual:.1f} minuto(s)."
             )
             if not self.abrir_video_no_edge(url_video):
@@ -3072,14 +3345,14 @@ class AutoRewardsApp:
             faltam = int(tracker["faltam"])
             if tentativa >= max_tentativas:
                 self.status_com_log(
-                    f"Tempo Edge ainda incompleto: faltam {faltam} min e o limite de verificacoes foi atingido.",
+                    f"Navegar com Edge ainda incompleto: faltam {faltam} min e o limite de verificações foi atingido.",
                     "orange",
                 )
                 return False
 
             espera_atual = max(1.0, faltam + margem_extra)
             self.status_com_log(
-                f"Tempo Edge incompleto: {tracker['minutos']}/{tracker['total']} min. "
+                f"Navegar com Edge incompleto: {tracker['minutos']}/{tracker['total']} min. "
                 f"Nova espera: {espera_atual:.1f} minuto(s).",
                 "orange",
             )
@@ -3156,7 +3429,10 @@ class AutoRewardsApp:
         return self.sleep_interruptivel(2.0)
 
     def sleep_minutos_com_log(self, minutos, label):
-        restante = max(0.0, float(minutos) * 60)
+        return self.sleep_segundos_com_log(float(minutos) * 60, label)
+
+    def sleep_segundos_com_log(self, segundos, label):
+        restante = max(0.0, float(segundos))
         proximo_log = 0.0
 
         while restante > 0:
@@ -3164,8 +3440,9 @@ class AutoRewardsApp:
                 return False
 
             if proximo_log <= 0:
-                restantes_min = restante / 60
-                self.status_com_log(f"{label}: faltam {restantes_min:.1f} minuto(s).")
+                self.status_com_log(
+                    f"{label}: faltam {self.formatar_duracao(round(restante))}."
+                )
                 proximo_log = 60.0
 
             pausa = min(1.0, restante)

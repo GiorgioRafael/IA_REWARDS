@@ -1,0 +1,124 @@
+[09:46:56] ======================================================================
+[09:46:56] Fluxo selecionado iniciado
+[09:46:56] Arquivo de log: C:\Users\giorg\Documents\GitHub\AI_REWARDS\logs\execucao_20260528_094656.log
+[09:46:56] ======================================================================
+[09:46:56] Iniciando fluxo selecionado...
+[09:46:56] Preparando automacao completa.
+[09:46:56] Coordenadas carregadas: {'icone_extensao': (-313, 64), 'double_click_scroll': (-27, 303), 'card_1': (-622, 400), 'card_2': (-596, 510), 'card_3': (-581, 608), 'voltar': (-1894, 54)}
+[09:46:56] Abrindo o Microsoft Edge...
+[09:46:56] Pressionando tecla Windows.
+[09:46:57] Digitando app no menu iniciar: EDGE
+[09:46:58] Pressionando Enter para abrir o app.
+[09:46:58] Aguardando Edge abrir por 4.00s.
+[09:47:02] Clicando no icone da extensao...
+[09:47:02] Abrindo extensao por deteccao de imagem.
+[09:47:02] Rodando deteccao do alvo 'icone_extensao' com 7 template(s), confianca 0.82, match forte 0.95.
+[09:47:03] Alvo 'icone_extensao' retornou 1 resultado(s).
+[09:47:03] Melhor alvo 'icone_extensao': x=-312, y=69, score=0.99.
+[09:47:03] Coordenada do alvo visual 'icone_extensao' salva no cache desta execucao.
+[09:47:03] Clicando alvo visual 'icone_extensao': x=-312, y=69.
+[09:47:03] Aguardando 2.23s (apos_icone_extensao: 2.0-5.0s).
+[09:47:06] Rolando painel e procurando cards com +10/+5 ate o fim do scroll (limite de seguranca: 40).
+[09:47:06] Focando area de scroll pelo alvo treinado 'Exibir painel'.
+[09:47:06] Rodando deteccao do alvo 'exibir_painel' com 19 template(s), confianca 0.82, match forte 0.95.
+[09:47:06] Alvo 'exibir_painel' retornou 1 resultado(s).
+[09:47:06] Melhor alvo 'exibir_painel': x=-169, y=249, score=0.99.
+[09:47:06] Coordenada do alvo visual 'exibir_painel' salva no cache desta execucao.
+[09:47:06] Clicando alvo visual 'exibir_painel': x=-169, y=319.
+[09:47:07] Procurando +10/+5 na area visivel antes de rolar...
+[09:47:07] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[09:47:07] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:07] Busca de bonus limitada ao painel Rewards: x=-494, y=41, w=470, h=974.
+[09:47:09] Deteccao retornou 0 resultado(s).
+[09:47:09] Todos os alvos encontrados ja foram clicados nessa execucao.
+[09:47:09] Nenhum +10/+5 visivel nesta posicao. Agora vou rolar.
+[09:47:09] Rolando painel (1/40)...
+[09:47:09] Area de scroll ancorada em 'Exibir painel' (cache): x=-169, y=319.
+[09:47:09] Movendo mouse abaixo de 'Exibir painel': x=-169, y=319.
+[09:47:10] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:10] Detector de fim do scroll usando regiao x=-494, y=41, w=470, h=974.
+[09:47:10] Rolando mouse em 5 passo(s), direcao=-1.
+[09:47:10] Scroll do mouse 1/5.
+[09:47:10] Scroll do mouse 2/5.
+[09:47:10] Scroll do mouse 3/5.
+[09:47:11] Scroll do mouse 4/5.
+[09:47:11] Scroll do mouse 5/5.
+[09:47:12] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:12] Scroll interno detectado por barra cinza: antes_y=373, depois_y=554, delta=181, fim=False.
+[09:47:12] Procurando +10/+5 na area visivel antes de rolar...
+[09:47:12] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[09:47:13] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:13] Busca de bonus limitada ao painel Rewards: x=-494, y=41, w=470, h=974.
+[09:47:14] Deteccao retornou 0 resultado(s).
+[09:47:14] Todos os alvos encontrados ja foram clicados nessa execucao.
+[09:47:14] Nenhum +10/+5 visivel nesta posicao. Agora vou rolar.
+[09:47:14] Rolando painel (2/40)...
+[09:47:15] Area de scroll ancorada em 'Exibir painel' (cache): x=-169, y=319.
+[09:47:15] Movendo mouse abaixo de 'Exibir painel': x=-169, y=319.
+[09:47:15] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:16] Detector de fim do scroll usando regiao x=-494, y=41, w=470, h=974.
+[09:47:16] Rolando mouse em 5 passo(s), direcao=-1.
+[09:47:16] Scroll do mouse 1/5.
+[09:47:16] Scroll do mouse 2/5.
+[09:47:16] Scroll do mouse 3/5.
+[09:47:16] Scroll do mouse 4/5.
+[09:47:16] Scroll do mouse 5/5.
+[09:47:18] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:18] Scroll interno detectado por barra cinza: antes_y=554, depois_y=735, delta=181, fim=False.
+[09:47:18] Procurando +10/+5 na area visivel antes de rolar...
+[09:47:18] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[09:47:18] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:18] Busca de bonus limitada ao painel Rewards: x=-494, y=41, w=470, h=974.
+[09:47:18] Deteccao retornou 2 resultado(s).
+[09:47:18] Alvo validado como bonus com '+': x=-82, y=755, h=12/8, v=12/6.
+[09:47:18] Melhor alvo bonus: x=-82, y=755, score=0.97, template=C:\Users\giorg\Documents\GitHub\AI_REWARDS\assets\plus_10.png.
+[09:47:18] Card bonus encontrado (1/3). Clicando...
+[09:47:18] Movendo mouse para alvo detectado: x=-82, y=755 (offset 0, 0).
+[09:47:19] Enviando clique no card detectado.
+[09:47:19] Aguardando 2.99s (apos_card_detectado: 2.0-5.0s).
+[09:47:22] Rodando deteccao do alvo 'voltar' com 3 template(s), confianca 0.82, match forte 0.95.
+[09:47:22] Alvo 'voltar' retornou 1 resultado(s).
+[09:47:22] Melhor alvo 'voltar': x=-1885, y=67, score=1.00.
+[09:47:22] Coordenada do alvo visual 'voltar' salva no cache desta execucao.
+[09:47:22] Clicando alvo visual 'voltar': x=-1885, y=67.
+[09:47:23] Aguardando 3.73s (apos_voltar_card_detectado: 2.0-5.0s).
+[09:47:26] Voltamos do card. Conferindo a mesma area antes de rolar.
+[09:47:26] Procurando +10/+5 na area visivel antes de rolar...
+[09:47:26] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[09:47:27] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:27] Busca de bonus limitada ao painel Rewards: x=-494, y=41, w=470, h=974.
+[09:47:27] Deteccao retornou 1 resultado(s).
+[09:47:27] Todos os alvos encontrados ja foram clicados nessa execucao.
+[09:47:27] Nenhum +10/+5 visivel nesta posicao. Agora vou rolar.
+[09:47:27] Rolando painel (3/40)...
+[09:47:27] Area de scroll ancorada em 'Exibir painel' (cache): x=-169, y=319.
+[09:47:27] Movendo mouse abaixo de 'Exibir painel': x=-169, y=319.
+[09:47:28] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:28] Detector de fim do scroll usando regiao x=-494, y=41, w=470, h=974.
+[09:47:28] Rolando mouse em 5 passo(s), direcao=-1.
+[09:47:28] Scroll do mouse 1/5.
+[09:47:28] Scroll do mouse 2/5.
+[09:47:29] Scroll do mouse 3/5.
+[09:47:29] Scroll do mouse 4/5.
+[09:47:29] Scroll do mouse 5/5.
+[09:47:30] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:30] Scroll interno detectado por barra cinza: antes_y=746, depois_y=893, delta=147, fim=True.
+[09:47:30] Detector da barra interna indicou fim do scroll.
+[09:47:30] Procurando +10/+5 na area visivel antes de rolar...
+[09:47:30] Rodando deteccao +10/+5 com 21 template(s), confianca 0.85.
+[09:47:31] Painel Rewards detectado automaticamente: x=-494, y=41, w=470, h=974, score=12.13, origem=logo_expandido, logo=1.00, fechar=1.00.
+[09:47:31] Busca de bonus limitada ao painel Rewards: x=-494, y=41, w=470, h=974.
+[09:47:31] Deteccao retornou 1 resultado(s).
+[09:47:31] Alvo ignorado: parece selo concluido/sem '+'. x=-82, y=747, score=0.96, motivo=sem geometria de +, h=6/8, v=3/6.
+[09:47:31] Todos os alvos encontrados ja foram clicados nessa execucao.
+[09:47:31] Fim do scroll detectado e nenhum +10/+5 novo encontrado.
+[09:47:31] 1 card(s) bonus executado(s).
+[09:47:31] Conjunto diário concluído. Iniciando Pesquisar com o Bing...
+[09:47:34] Iniciando Pesquisar com o Bing: 20 busca(s).
+[09:47:34] Busca 1 de 20...
+[09:47:34] Buscando 3 palavra(s) na API.
+[09:47:34] API de palavras falhou. Usando palavras locais.
+[09:47:34] Palavras locais escolhidas: ['history', 'technology', 'space']
+[09:47:34] Texto da busca 1: history technology space
+[09:47:34] Nova versao ativa: focando barra do Edge com Ctrl+L.
+[09:47:34] Automacao pausada. Clique em Resumir para continuar.

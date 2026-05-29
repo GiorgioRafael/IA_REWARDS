@@ -474,8 +474,8 @@ def obter_config_alvo_visual(config, nome):
             "treino_dir": "assets/treino_brotato_icone_barra",
             "confianca": 0.82,
             "score_forte": 0.95,
-            "capture_width": 70,
-            "capture_height": 60,
+            "capture_width": 36,
+            "capture_height": 36,
             "click_offset_x": 0,
             "click_offset_y": 0,
             "regiao": {"x": None, "y": None, "width": None, "height": None},
@@ -607,8 +607,8 @@ def abrir_ver_tudo_e_detectar_tracker_edge(
     if deve_parar(stop_event):
         return None
 
-    avisar(status_callback, "Procurando botao 'Ver tudo' para abrir detalhes do Rewards.")
-    if not clicar_alvo_visual(
+    avisar(status_callback, "Procurando botao 'Ver tudo/Mostrar mais' para abrir detalhes do Rewards.")
+    if not procurar_e_clicar_alvo_visual_com_scroll(
         config,
         "ver_tudo",
         stop_event=stop_event,
@@ -621,6 +621,134 @@ def abrir_ver_tudo_e_detectar_tracker_edge(
         return None
 
     return detectar_estado_tracker_edge(config, status_callback)
+
+
+def localizar_alvo_visual_no_painel(config, nome, status_callback=None):
+    alvo_config = obter_config_alvo_visual(config, nome)
+    regiao = normalizar_regiao_manual(alvo_config.get("regiao"))
+    if regiao is None:
+        regiao = obter_regiao_painel_rewards(config, status_callback)
+
+    if regiao is not None:
+        avisar(
+            status_callback,
+            f"Busca do alvo '{nome}' limitada ao painel Rewards: "
+            f"x={regiao['x']}, y={regiao['y']}, "
+            f"w={regiao['width']}, h={regiao['height']}.",
+        )
+
+    return localizar_alvo_visual(config, nome, status_callback, regiao=regiao)
+
+
+def clicar_resultado_alvo_visual(
+    config,
+    nome,
+    alvo,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
+    if deve_parar(stop_event):
+        return False
+
+    alvo_config = obter_config_alvo_visual(config, nome)
+    x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
+    y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
+    avisar(
+        status_callback,
+        f"Clicando alvo visual '{nome}' encontrado na busca com scroll: x={x}, y={y}.",
+    )
+    mover_mouse(x, y)
+    if not dormir(config["tempos"]["movimento_mouse"], stop_event):
+        return False
+    if not garantir_mouse_no_alvo(
+        config,
+        nome,
+        x,
+        y,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    ):
+        return False
+
+    clicar_mouse()
+    return True
+
+
+def procurar_e_clicar_alvo_visual_com_scroll(
+    config,
+    nome,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
+    if deve_parar(stop_event):
+        return False
+
+    if not listar_templates_alvo_visual(config, nome):
+        avisar(status_callback, f"Nenhum template treinado para '{nome}'.", "orange")
+        return False
+
+    coordenadas = carregar_coordenadas(config)
+    deteccao = obter_config_deteccao(config)
+    limite_scrolls = int(deteccao.get("max_scrolls", 40))
+    scroll_focado = False
+
+    for tentativa in range(0, limite_scrolls + 1):
+        if deve_parar(stop_event):
+            return False
+
+        avisar(
+            status_callback,
+            f"Procurando alvo '{nome}' no painel (posicao {tentativa}/{limite_scrolls}).",
+        )
+        alvo = localizar_alvo_visual_no_painel(config, nome, status_callback)
+        if alvo is not None:
+            return clicar_resultado_alvo_visual(
+                config,
+                nome,
+                alvo,
+                stop_event=stop_event,
+                status_callback=status_callback,
+                safety_callback=safety_callback,
+            )
+
+        if tentativa >= limite_scrolls:
+            break
+
+        if not scroll_focado:
+            avisar(status_callback, "Alvo nao visivel. Focando scroll do painel para continuar procurando.")
+            if not focar_area_scroll(
+                config,
+                coordenadas,
+                stop_event=stop_event,
+                status_callback=status_callback,
+                safety_callback=safety_callback,
+            ):
+                return False
+            scroll_focado = True
+
+        avisar(status_callback, f"Alvo '{nome}' nao encontrado. Rolando painel e tentando novamente.")
+        resultado_scroll = rolar_area_extensao(
+            config,
+            coordenadas,
+            stop_event=stop_event,
+            status_callback=status_callback,
+            safety_callback=safety_callback,
+        )
+        if not resultado_scroll.get("ok"):
+            return False
+        if resultado_scroll.get("fim_scroll"):
+            avisar(
+                status_callback,
+                f"Fim do painel detectado antes de encontrar o alvo '{nome}'.",
+                "orange",
+            )
+            break
+
+    avisar(status_callback, f"Alvo '{nome}' nao encontrado depois de rolar o painel.", "red")
+    return False
 
 
 def localizar_alvo_visual(config, nome, status_callback=None, regiao=None):
@@ -826,20 +954,19 @@ def localizar_alvo_bonus(config, alvos_clicados, status_callback=None):
             f"w={regiao_deteccao['width']}, h={regiao_deteccao['height']}.",
         )
 
-    resultados = localizar_templates(
-        templates,
-        confianca=float(deteccao["confianca"]),
-        regiao=regiao_deteccao,
-        max_resultados=20,
-        parar_score=deteccao.get("score_forte", 0.95),
-    )
-    avisar(status_callback, f"Deteccao retornou {len(resultados)} resultado(s).")
+    def escolher_alvo(resultados):
+        ignorados_clicados = 0
+        ignorados_invalidos = 0
 
-    for alvo in resultados:
-        if not alvo_ja_clicado(alvo, alvos_clicados):
+        for alvo in resultados:
+            if alvo_ja_clicado(alvo, alvos_clicados):
+                ignorados_clicados += 1
+                continue
+
             if deteccao.get("validar_sinal_mais", True):
                 valido, detalhes = validar_sinal_mais_no_alvo(alvo)
                 if not valido:
+                    ignorados_invalidos += 1
                     avisar(
                         status_callback,
                         "Alvo ignorado: parece selo concluido/sem '+'. "
@@ -863,9 +990,46 @@ def localizar_alvo_bonus(config, alvos_clicados, status_callback=None):
                 status_callback,
                 f"Melhor alvo bonus: x={alvo['x']}, y={alvo['y']}, score={alvo['score']:.2f}, template={alvo.get('template')}.",
             )
+            return alvo, ignorados_clicados, ignorados_invalidos
+
+        return None, ignorados_clicados, ignorados_invalidos
+
+    resultados = localizar_templates(
+        templates,
+        confianca=float(deteccao["confianca"]),
+        regiao=regiao_deteccao,
+        max_resultados=20,
+        parar_score=deteccao.get("score_forte", 0.95),
+    )
+    avisar(status_callback, f"Deteccao retornou {len(resultados)} resultado(s).")
+    alvo, ignorados_clicados, ignorados_invalidos = escolher_alvo(resultados)
+    if alvo is not None:
+        return alvo
+
+    if deteccao.get("score_forte") is not None:
+        avisar(
+            status_callback,
+            "Nenhum bonus novo no primeiro passe. Refazendo busca completa antes de rolar.",
+            "orange",
+        )
+        resultados = localizar_templates(
+            templates,
+            confianca=float(deteccao["confianca"]),
+            regiao=regiao_deteccao,
+            max_resultados=20,
+            parar_score=None,
+        )
+        avisar(status_callback, f"Deteccao completa retornou {len(resultados)} resultado(s).")
+        alvo, ignorados_clicados, ignorados_invalidos = escolher_alvo(resultados)
+        if alvo is not None:
             return alvo
 
-    avisar(status_callback, "Todos os alvos encontrados ja foram clicados nessa execucao.")
+    avisar(
+        status_callback,
+        "Nenhum bonus novo aproveitavel nesta area "
+        f"(ja clicados: {ignorados_clicados}, sem '+': {ignorados_invalidos}).",
+        "orange",
+    )
     return None
 
 
