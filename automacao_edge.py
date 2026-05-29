@@ -1,8 +1,10 @@
 import argparse
+import ctypes
 import json
 import random
 import time
 from pathlib import Path
+from ctypes import wintypes
 
 from PIL import ImageChops, ImageStat
 
@@ -44,6 +46,27 @@ except Exception:
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
+SW_RESTORE = 9
+SW_MAXIMIZE = 3
+MONITORINFOF_PRIMARY = 1
+
+
+class RECT(ctypes.Structure):
+    _fields_ = [
+        ("left", wintypes.LONG),
+        ("top", wintypes.LONG),
+        ("right", wintypes.LONG),
+        ("bottom", wintypes.LONG),
+    ]
+
+
+class MONITORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("rcMonitor", RECT),
+        ("rcWork", RECT),
+        ("dwFlags", wintypes.DWORD),
+    ]
 
 
 def carregar_config(caminho_config):
@@ -88,6 +111,146 @@ def dormir(segundos, stop_event=None):
         time.sleep(pausa)
         restante -= time.time() - inicio
     return True
+
+
+def rect_para_dict(rect):
+    return {
+        "x": int(rect.left),
+        "y": int(rect.top),
+        "width": int(rect.right - rect.left),
+        "height": int(rect.bottom - rect.top),
+    }
+
+
+def listar_monitores_windows():
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    monitores = []
+
+    monitor_enum_proc = ctypes.WINFUNCTYPE(
+        wintypes.BOOL,
+        wintypes.HMONITOR,
+        wintypes.HDC,
+        ctypes.POINTER(RECT),
+        wintypes.LPARAM,
+    )
+
+    def visitar_monitor(hmonitor, _hdc, _rect, _lparam):
+        info = MONITORINFO()
+        info.cbSize = ctypes.sizeof(MONITORINFO)
+        if user32.GetMonitorInfoW(hmonitor, ctypes.byref(info)):
+            area = rect_para_dict(info.rcMonitor)
+            trabalho = rect_para_dict(info.rcWork)
+            monitores.append(
+                {
+                    **area,
+                    "work_x": trabalho["x"],
+                    "work_y": trabalho["y"],
+                    "work_width": trabalho["width"],
+                    "work_height": trabalho["height"],
+                    "primary": bool(info.dwFlags & MONITORINFOF_PRIMARY),
+                }
+            )
+        return True
+
+    user32.EnumDisplayMonitors(0, 0, monitor_enum_proc(visitar_monitor), 0)
+    return monitores
+
+
+def obter_monitor_secundario():
+    monitores = listar_monitores_windows()
+    if len(monitores) < 2:
+        return None
+
+    secundarios = [monitor for monitor in monitores if not monitor.get("primary")]
+    if secundarios:
+        return sorted(secundarios, key=lambda item: (item["x"], item["y"]))[0]
+
+    return sorted(monitores, key=lambda item: (item["x"], item["y"]))[1]
+
+
+def encontrar_janela_por_titulo(partes_titulo):
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    partes = [
+        str(parte).strip().lower()
+        for parte in partes_titulo
+        if str(parte).strip()
+    ]
+    if not partes:
+        return None, None
+
+    encontrados = []
+    enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def visitar_janela(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+
+        tamanho = user32.GetWindowTextLengthW(hwnd)
+        if tamanho <= 0:
+            return True
+
+        buffer = ctypes.create_unicode_buffer(tamanho + 1)
+        user32.GetWindowTextW(hwnd, buffer, tamanho + 1)
+        titulo = buffer.value.strip()
+        titulo_normalizado = titulo.lower()
+        if any(parte in titulo_normalizado for parte in partes):
+            encontrados.append((hwnd, titulo))
+            return False
+
+        return True
+
+    user32.EnumWindows(enum_proc(visitar_janela), 0)
+    if not encontrados:
+        return None, None
+
+    return encontrados[0]
+
+
+def mover_janela_para_monitor(hwnd, monitor):
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    x = int(monitor.get("work_x", monitor["x"]))
+    y = int(monitor.get("work_y", monitor["y"]))
+    width = int(monitor.get("work_width", monitor["width"]))
+    height = int(monitor.get("work_height", monitor["height"]))
+
+    user32.ShowWindow(hwnd, SW_RESTORE)
+    time.sleep(0.2)
+    user32.MoveWindow(hwnd, x, y, width, height, True)
+    time.sleep(0.2)
+    user32.ShowWindow(hwnd, SW_MAXIMIZE)
+    user32.SetForegroundWindow(hwnd)
+
+
+def forcar_edge_no_segundo_monitor(config, stop_event=None, status_callback=None):
+    navegador = config.get("navegador", {})
+    if not navegador.get("forcar_segundo_monitor", False):
+        return True
+
+    if deve_parar(stop_event):
+        return False
+
+    titulo_config = navegador.get("titulo_janela", "Microsoft Edge")
+    partes_titulo = [titulo_config, "Microsoft Edge"]
+    avisar(status_callback, "Procurando janela do Edge para enviar ao segundo monitor.")
+    hwnd, titulo = encontrar_janela_por_titulo(partes_titulo)
+    if hwnd is None:
+        avisar(status_callback, "Nao encontrei a janela do Edge para enviar ao segundo monitor.", "orange")
+        return True
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.ShowWindow(hwnd, SW_RESTORE)
+    user32.SetForegroundWindow(hwnd)
+    if not dormir(0.4, stop_event):
+        return False
+
+    avisar(status_callback, "Aplicando atalhos: Win+Shift+Up e Win+Shift+Left.")
+    pyautogui.hotkey("win", "shift", "up")
+    if not dormir(0.3, stop_event):
+        return False
+
+    pyautogui.hotkey("win", "shift", "left")
+    avisar(status_callback, f"Atalhos aplicados no Edge: {titulo}", "green")
+    return dormir(0.5, stop_event)
 
 
 def carregar_coordenadas(config):
@@ -145,7 +308,10 @@ def abrir_edge(config, stop_event=None, status_callback=None):
     avisar(status_callback, "Pressionando Enter para abrir o app.")
     pyautogui.press("enter")
     avisar(status_callback, f"Aguardando Edge abrir por {tempos['apos_enter']:.2f}s.")
-    return dormir(tempos["apos_enter"], stop_event)
+    if not dormir(tempos["apos_enter"], stop_event):
+        return False
+
+    return forcar_edge_no_segundo_monitor(config, stop_event, status_callback)
 
 
 def validar_coordenada(nome, x, y):
@@ -260,6 +426,9 @@ def obter_config_deteccao(config):
         {
             "ativada": False,
             "usar_fallback_coordenadas": True,
+            "busca_flexivel": True,
+            "confianca_flexivel": 0.78,
+            "escalas_flexiveis": [0.9, 0.95, 1.0, 1.05, 1.1],
         },
     )
 
@@ -394,6 +563,42 @@ def listar_templates_bonus(config):
         templates.extend(listar_templates_plus_5(config))
 
     return templates
+
+
+def normalizar_escalas_flexiveis(valor):
+    if not valor:
+        valor = [0.9, 0.95, 1.0, 1.05, 1.1]
+
+    escalas = []
+    for escala in valor:
+        try:
+            escala = round(float(escala), 4)
+        except (TypeError, ValueError):
+            continue
+
+        if escala <= 0:
+            continue
+
+        if escala not in escalas:
+            escalas.append(escala)
+
+    return escalas or [0.9, 0.95, 1.0, 1.05, 1.1]
+
+
+def obter_escalas_flexiveis(config_obj):
+    return normalizar_escalas_flexiveis(
+        config_obj.get("escalas_flexiveis") or config_obj.get("escalas")
+    )
+
+
+def obter_confianca_flexivel(config_obj, confianca_padrao):
+    if config_obj.get("confianca_flexivel") is not None:
+        try:
+            return float(config_obj["confianca_flexivel"])
+        except (TypeError, ValueError):
+            pass
+
+    return max(0.68, float(confianca_padrao) - 0.12)
 
 
 def obter_config_alvo_visual(config, nome):
@@ -535,7 +740,10 @@ def listar_templates_tracker_estado(config, minutos):
     return sorted(estado_dir.glob("*.png"))
 
 
-def detectar_estado_tracker_edge(config, status_callback=None):
+def detectar_estado_tracker_edge(config, status_callback=None, stop_event=None):
+    if deve_parar(stop_event):
+        return None
+
     tracker = obter_config_edge_tracker(config)
     estados = [int(valor) for valor in tracker.get("estados_minutos", [0, 5, 10, 15, 20, 25, 30])]
     templates = []
@@ -567,7 +775,11 @@ def detectar_estado_tracker_edge(config, status_callback=None):
         regiao=regiao,
         max_resultados=50,
         parar_score=None,
+        stop_event=stop_event,
     )
+    if deve_parar(stop_event):
+        return None
+
     if not resultados:
         avisar(status_callback, "Nao consegui identificar o estado do tracker Edge.", "orange")
         return None
@@ -620,10 +832,13 @@ def abrir_ver_tudo_e_detectar_tracker_edge(
     if not dormir(0.8, stop_event):
         return None
 
-    return detectar_estado_tracker_edge(config, status_callback)
+    return detectar_estado_tracker_edge(config, status_callback, stop_event)
 
 
-def localizar_alvo_visual_no_painel(config, nome, status_callback=None):
+def localizar_alvo_visual_no_painel(config, nome, status_callback=None, stop_event=None):
+    if deve_parar(stop_event):
+        return None
+
     alvo_config = obter_config_alvo_visual(config, nome)
     regiao = normalizar_regiao_manual(alvo_config.get("regiao"))
     if regiao is None:
@@ -637,7 +852,13 @@ def localizar_alvo_visual_no_painel(config, nome, status_callback=None):
             f"w={regiao['width']}, h={regiao['height']}.",
         )
 
-    return localizar_alvo_visual(config, nome, status_callback, regiao=regiao)
+    return localizar_alvo_visual(
+        config,
+        nome,
+        status_callback,
+        regiao=regiao,
+        stop_event=stop_event,
+    )
 
 
 def clicar_resultado_alvo_visual(
@@ -703,7 +924,12 @@ def procurar_e_clicar_alvo_visual_com_scroll(
             status_callback,
             f"Procurando alvo '{nome}' no painel (posicao {tentativa}/{limite_scrolls}).",
         )
-        alvo = localizar_alvo_visual_no_painel(config, nome, status_callback)
+        alvo = localizar_alvo_visual_no_painel(
+            config,
+            nome,
+            status_callback,
+            stop_event=stop_event,
+        )
         if alvo is not None:
             return clicar_resultado_alvo_visual(
                 config,
@@ -751,7 +977,10 @@ def procurar_e_clicar_alvo_visual_com_scroll(
     return False
 
 
-def localizar_alvo_visual(config, nome, status_callback=None, regiao=None):
+def localizar_alvo_visual(config, nome, status_callback=None, regiao=None, stop_event=None):
+    if deve_parar(stop_event):
+        return None
+
     alvo_config = obter_config_alvo_visual(config, nome)
     templates = listar_templates_alvo_visual(config, nome)
     if not templates:
@@ -763,6 +992,15 @@ def localizar_alvo_visual(config, nome, status_callback=None, regiao=None):
         return None
 
     regiao_config = regiao or normalizar_regiao_manual(alvo_config.get("regiao"))
+    if regiao_config is None:
+        regiao_config = obter_regiao_padrao_alvo_visual(nome)
+        if regiao_config is not None:
+            avisar(
+                status_callback,
+                f"Busca do alvo '{nome}' limitada a area provavel: "
+                f"x={regiao_config['x']}, y={regiao_config['y']}, "
+                f"w={regiao_config['width']}, h={regiao_config['height']}.",
+            )
     confianca = float(alvo_config.get("confianca", 0.82))
     score_forte = alvo_config.get("score_forte", 0.95)
     avisar(
@@ -776,15 +1014,68 @@ def localizar_alvo_visual(config, nome, status_callback=None, regiao=None):
         regiao=regiao_config,
         max_resultados=10,
         parar_score=score_forte,
+        stop_event=stop_event,
     )
     avisar(status_callback, f"Alvo '{nome}' retornou {len(resultados)} resultado(s).")
+    if deve_parar(stop_event):
+        return None
+
+    if not resultados and alvo_config.get("busca_flexivel", True):
+        escalas = obter_escalas_flexiveis(alvo_config)
+        confianca_flexivel = obter_confianca_flexivel(alvo_config, confianca)
+        avisar(
+            status_callback,
+            f"Alvo '{nome}' nao encontrado no tamanho original. "
+            f"Tentando busca flexivel com escalas {escalas} e confianca {confianca_flexivel:.2f}.",
+            "orange",
+        )
+        resultados = localizar_templates(
+            templates,
+            confianca=confianca_flexivel,
+            regiao=regiao_config,
+            max_resultados=10,
+            parar_score=score_forte,
+            escalas=escalas,
+            stop_event=stop_event,
+        )
+        avisar(
+            status_callback,
+            f"Busca flexivel do alvo '{nome}' retornou {len(resultados)} resultado(s).",
+        )
+        if deve_parar(stop_event):
+            return None
+
+        if not resultados:
+            avisar(
+                status_callback,
+                f"Alvo '{nome}' ainda nao encontrado. Tentando busca flexivel em tons de cinza.",
+                "orange",
+            )
+            resultados = localizar_templates(
+                templates,
+                confianca=confianca_flexivel,
+                regiao=regiao_config,
+                max_resultados=10,
+                parar_score=score_forte,
+                escalas=escalas,
+                tons_cinza=True,
+                stop_event=stop_event,
+            )
+            avisar(
+                status_callback,
+                f"Busca flexivel em tons de cinza do alvo '{nome}' retornou {len(resultados)} resultado(s).",
+            )
+            if deve_parar(stop_event):
+                return None
+
     if not resultados:
         return None
 
     melhor = resultados[0]
     avisar(
         status_callback,
-        f"Melhor alvo '{nome}': x={melhor['x']}, y={melhor['y']}, score={melhor['score']:.2f}.",
+        f"Melhor alvo '{nome}': x={melhor['x']}, y={melhor['y']}, "
+        f"score={melhor['score']:.2f}, escala={float(melhor.get('scale', 1.0)):.2f}.",
     )
     return melhor
 
@@ -811,7 +1102,13 @@ def clicar_alvo_visual(
             f"Usando coordenada em cache para alvo visual '{nome}': x={x}, y={y}.",
         )
     else:
-        alvo = localizar_alvo_visual(config, nome, status_callback, regiao=regiao)
+        alvo = localizar_alvo_visual(
+            config,
+            nome,
+            status_callback,
+            regiao=regiao,
+            stop_event=stop_event,
+        )
         if alvo is None:
             return False
 
@@ -846,14 +1143,26 @@ def clicar_alvo_visual(
     return True
 
 
-def obter_coordenada_alvo_visual(config, nome, status_callback=None, regiao=None):
+def obter_coordenada_alvo_visual(
+    config,
+    nome,
+    status_callback=None,
+    regiao=None,
+    stop_event=None,
+):
     alvo_config = obter_config_alvo_visual(config, nome)
     cache_alvos = obter_cache_execucao(config)["alvos_visuais"]
     cache = cache_alvos.get(nome)
     if cache is not None:
         return int(cache["x"]), int(cache["y"]), True
 
-    alvo = localizar_alvo_visual(config, nome, status_callback, regiao=regiao)
+    alvo = localizar_alvo_visual(
+        config,
+        nome,
+        status_callback,
+        regiao=regiao,
+        stop_event=stop_event,
+    )
     if alvo is None:
         return None, None, False
 
@@ -930,7 +1239,10 @@ def alvo_ja_clicado(alvo, alvos_clicados, margem=45):
     )
 
 
-def localizar_alvo_bonus(config, alvos_clicados, status_callback=None):
+def localizar_alvo_bonus(config, alvos_clicados, status_callback=None, stop_event=None):
+    if deve_parar(stop_event):
+        return None
+
     deteccao = obter_config_deteccao(config)
     templates = listar_templates_bonus(config)
 
@@ -959,6 +1271,9 @@ def localizar_alvo_bonus(config, alvos_clicados, status_callback=None):
         ignorados_invalidos = 0
 
         for alvo in resultados:
+            if deve_parar(stop_event):
+                return None, ignorados_clicados, ignorados_invalidos
+
             if alvo_ja_clicado(alvo, alvos_clicados):
                 ignorados_clicados += 1
                 continue
@@ -1000,9 +1315,15 @@ def localizar_alvo_bonus(config, alvos_clicados, status_callback=None):
         regiao=regiao_deteccao,
         max_resultados=20,
         parar_score=deteccao.get("score_forte", 0.95),
+        stop_event=stop_event,
     )
     avisar(status_callback, f"Deteccao retornou {len(resultados)} resultado(s).")
+    if deve_parar(stop_event):
+        return None
+
     alvo, ignorados_clicados, ignorados_invalidos = escolher_alvo(resultados)
+    if deve_parar(stop_event):
+        return None
     if alvo is not None:
         return alvo
 
@@ -1018,9 +1339,71 @@ def localizar_alvo_bonus(config, alvos_clicados, status_callback=None):
             regiao=regiao_deteccao,
             max_resultados=20,
             parar_score=None,
+            stop_event=stop_event,
         )
         avisar(status_callback, f"Deteccao completa retornou {len(resultados)} resultado(s).")
+        if deve_parar(stop_event):
+            return None
+
         alvo, ignorados_clicados, ignorados_invalidos = escolher_alvo(resultados)
+        if deve_parar(stop_event):
+            return None
+        if alvo is not None:
+            return alvo
+
+    if deteccao.get("busca_flexivel", True):
+        escalas = obter_escalas_flexiveis(deteccao)
+        confianca_flexivel = obter_confianca_flexivel(
+            deteccao,
+            float(deteccao["confianca"]),
+        )
+        avisar(
+            status_callback,
+            "Nenhum bonus novo no tamanho original. "
+            f"Tentando busca flexivel com escalas {escalas} e confianca {confianca_flexivel:.2f}.",
+            "orange",
+        )
+        resultados = localizar_templates(
+            templates,
+            confianca=confianca_flexivel,
+            regiao=regiao_deteccao,
+            max_resultados=20,
+            parar_score=None,
+            escalas=escalas,
+            stop_event=stop_event,
+        )
+        avisar(status_callback, f"Deteccao flexivel retornou {len(resultados)} resultado(s).")
+        if deve_parar(stop_event):
+            return None
+
+        alvo, ignorados_clicados, ignorados_invalidos = escolher_alvo(resultados)
+        if deve_parar(stop_event):
+            return None
+        if alvo is not None:
+            return alvo
+
+        avisar(
+            status_callback,
+            "Nenhum bonus novo na busca flexivel colorida. Tentando em tons de cinza.",
+            "orange",
+        )
+        resultados = localizar_templates(
+            templates,
+            confianca=confianca_flexivel,
+            regiao=regiao_deteccao,
+            max_resultados=20,
+            parar_score=None,
+            escalas=escalas,
+            tons_cinza=True,
+            stop_event=stop_event,
+        )
+        avisar(status_callback, f"Deteccao flexivel em tons de cinza retornou {len(resultados)} resultado(s).")
+        if deve_parar(stop_event):
+            return None
+
+        alvo, ignorados_clicados, ignorados_invalidos = escolher_alvo(resultados)
+        if deve_parar(stop_event):
+            return None
         if alvo is not None:
             return alvo
 
@@ -1033,8 +1416,8 @@ def localizar_alvo_bonus(config, alvos_clicados, status_callback=None):
     return None
 
 
-def localizar_alvo_plus_10(config, alvos_clicados, status_callback=None):
-    return localizar_alvo_bonus(config, alvos_clicados, status_callback)
+def localizar_alvo_plus_10(config, alvos_clicados, status_callback=None, stop_event=None):
+    return localizar_alvo_bonus(config, alvos_clicados, status_callback, stop_event)
 
 
 def clicar_alvo_detectado(
@@ -1110,6 +1493,7 @@ def focar_area_scroll(
         coordenadas,
         status_callback=status_callback,
         para_clique=True,
+        stop_event=stop_event,
     )
     if x is None or y is None:
         return False
@@ -1157,6 +1541,7 @@ def posicionar_mouse_area_scroll(
         coordenadas,
         status_callback=status_callback,
         para_clique=False,
+        stop_event=stop_event,
     )
     if x is None or y is None:
         return False
@@ -1222,6 +1607,29 @@ def limitar_regiao_virtual(x, y, width, height):
         "width": right - left,
         "height": bottom - top,
     }
+
+
+def obter_regiao_padrao_alvo_visual(nome):
+    virtual_x, virtual_y, virtual_width, virtual_height = obter_bbox_virtual()
+    if nome in {"icone_extensao", "voltar"}:
+        altura = min(190, virtual_height)
+        return {
+            "x": virtual_x,
+            "y": virtual_y,
+            "width": virtual_width,
+            "height": altura,
+        }
+
+    if nome == "brotato_icone_barra":
+        altura = min(150, virtual_height)
+        return {
+            "x": virtual_x,
+            "y": virtual_y + virtual_height - altura,
+            "width": virtual_width,
+            "height": altura,
+        }
+
+    return None
 
 
 def detectar_painel_automatico_ativado(config):
@@ -1301,12 +1709,22 @@ def obter_regiao_painel_rewards(config, status_callback=None):
     return None
 
 
-def obter_alvo_area_scroll(config, coordenadas, status_callback=None, para_clique=False):
+def obter_alvo_area_scroll(
+    config,
+    coordenadas,
+    status_callback=None,
+    para_clique=False,
+    stop_event=None,
+):
+    if deve_parar(stop_event):
+        return None, None, None
+
     if not usar_versao_fixa(config) and listar_templates_alvo_visual(config, "exibir_painel"):
         x, y, cache = obter_coordenada_alvo_visual(
             config,
             "exibir_painel",
             status_callback=status_callback,
+            stop_event=stop_event,
         )
         if x is not None and y is not None:
             origem = "cache" if cache else "deteccao"
@@ -1770,7 +2188,12 @@ def executar_cards_por_imagem(
             return False
 
         avisar(status_callback, "Procurando +10/+5 na area visivel antes de rolar...")
-        alvo = localizar_alvo_bonus(config, alvos_clicados, status_callback)
+        alvo = localizar_alvo_bonus(
+            config,
+            alvos_clicados,
+            status_callback,
+            stop_event=stop_event,
+        )
         if alvo is not None:
             cards_executados += 1
             estado_scroll["cards_executados"] = cards_executados

@@ -142,6 +142,9 @@ DEFAULT_CONFIG = {
         "treino_dir_plus_5": "assets/treino_plus_5",
         "confianca": 0.85,
         "score_forte": 0.95,
+        "busca_flexivel": True,
+        "confianca_flexivel": 0.78,
+        "escalas_flexiveis": [0.9, 0.95, 1.0, 1.05, 1.1],
         "validar_sinal_mais": True,
         "max_cards": 3,
         "max_scrolls": 40,
@@ -175,6 +178,10 @@ DEFAULT_CONFIG = {
     },
     "debug": {
         "abrir_cmd": True,
+    },
+    "navegador": {
+        "forcar_segundo_monitor": False,
+        "titulo_janela": "Microsoft Edge",
     },
     "edge_tracker": {
         "treino_dir": "assets/treino_edge_tracker_estados",
@@ -945,6 +952,10 @@ class AutoRewardsApp:
         self.movimento_mouse_var = tk.StringVar(
             value=str(self.config["tempos"]["movimento_mouse"])
         )
+        navegador = self.config.get("navegador", {})
+        self.forcar_edge_segundo_monitor_var = tk.BooleanVar(
+            value=navegador.get("forcar_segundo_monitor", False)
+        )
         deteccao = self.config["deteccao_imagem"]
         usando_versao_fixa = self.config.get("automacao", {}).get(
             "usar_versao_fixa", True
@@ -1001,6 +1012,11 @@ class AutoRewardsApp:
         self.add_float_row(
             abertura_frame, 4, "Movimento mouse", self.movimento_mouse_var, "seg"
         )
+        ttk.Checkbutton(
+            abertura_frame,
+            text="Forcar Edge no segundo monitor",
+            variable=self.forcar_edge_segundo_monitor_var,
+        ).grid(row=5, column=0, columnspan=4, sticky="w", padx=5, pady=5)
 
         modo_frame = ttk.LabelFrame(
             self.deteccao_tab, text="Deteccao de imagem > Modo", padding="10"
@@ -1831,14 +1847,13 @@ class AutoRewardsApp:
             if not templates:
                 raise FileNotFoundError(f"Nenhum template treinado para {nome}.")
 
-            alvo_config = self.config.get("alvos_visuais", {}).get(nome, {})
-            resultado["detectados"] = localizar_templates(
-                templates,
-                confianca=float(alvo_config.get("confianca", 0.82)),
-                regiao=alvo_config.get("regiao"),
-                max_resultados=10,
-                parar_score=alvo_config.get("score_forte", 0.95),
+            alvo = localizar_alvo_visual(
+                self.config,
+                nome,
+                status_callback=self.status_com_log,
+                stop_event=self.stop_automation,
             )
+            resultado["detectados"] = [] if alvo is None else [alvo]
         except FileNotFoundError:
             resultado["erro"] = (
                 "Template nao encontrado",
@@ -2436,6 +2451,9 @@ class AutoRewardsApp:
             self.config["tempos"]["movimento_mouse"] = self.parse_float(
                 self.movimento_mouse_var, "Movimento mouse"
             )
+            navegador = self.config.setdefault("navegador", {})
+            navegador["forcar_segundo_monitor"] = self.forcar_edge_segundo_monitor_var.get()
+            navegador.setdefault("titulo_janela", "Microsoft Edge")
             self.config.setdefault("automacao", {})
             modo_por_imagem = self.modo_conjunto_var.get() == "imagem"
             self.config["automacao"]["usar_versao_fixa"] = not modo_por_imagem
@@ -2684,9 +2702,18 @@ class AutoRewardsApp:
 
         def aplicar():
             principal_state = "disabled" if running else "normal"
-            pause_state = "normal" if running and not self.pause_automation.is_set() else "disabled"
-            resume_state = "normal" if running and self.pause_automation.is_set() else "disabled"
-            cancel_state = "normal" if running else "disabled"
+            cancelando = self.stop_automation.is_set()
+            pause_state = (
+                "normal"
+                if running and not cancelando and not self.pause_automation.is_set()
+                else "disabled"
+            )
+            resume_state = (
+                "normal"
+                if running and not cancelando and self.pause_automation.is_set()
+                else "disabled"
+            )
+            cancel_state = "normal" if running and not cancelando else "disabled"
 
             self.start_button.config(state=principal_state)
             self.timer_button.config(state=principal_state)
@@ -2735,9 +2762,12 @@ class AutoRewardsApp:
         if not self.automation_running:
             return
 
+        if self.stop_automation.is_set():
+            return
+
         self.stop_automation.set()
         self.pause_automation.clear()
-        self.status_com_log("Cancelando automacao...", "orange")
+        self.status_com_log("Cancelando automacao... aguardando etapa atual parar.", "orange")
         self.atualizar_botoes_pausa()
 
     def esperar_se_pausado(self):
@@ -3150,6 +3180,7 @@ class AutoRewardsApp:
                 self.config,
                 "brotato_gamertag",
                 status_callback=self.status_com_log if tentativa == 1 else None,
+                stop_event=self.stop_automation,
             )
             if alvo is not None:
                 self.status_com_log(

@@ -1,0 +1,21 @@
+[23:33:00] ======================================================================
+[23:33:00] Fluxo selecionado iniciado
+[23:33:00] Arquivo de log: C:\Users\giorg\Documents\GitHub\AI_REWARDS\logs\execucao_20260528_233300.log
+[23:33:00] ======================================================================
+[23:33:00] Iniciando fluxo selecionado...
+[23:33:00] Preparando automacao completa.
+[23:33:00] Coordenadas carregadas: {'icone_extensao': (-313, 64), 'double_click_scroll': (-27, 303), 'card_1': (-622, 400), 'card_2': (-596, 510), 'card_3': (-581, 608), 'voltar': (-1894, 54)}
+[23:33:00] Abrindo o Microsoft Edge...
+[23:33:00] Pressionando tecla Windows.
+[23:33:00] Digitando app no menu iniciar: EDGE
+[23:33:01] Pressionando Enter para abrir o app.
+[23:33:01] Aguardando Edge abrir por 4.00s.
+[23:33:05] Clicando no icone da extensao...
+[23:33:05] Abrindo extensao por deteccao de imagem.
+[23:33:05] Rodando deteccao do alvo 'icone_extensao' com 8 template(s), confianca 0.82, match forte 0.95.
+[23:33:10] Alvo 'icone_extensao' retornou 1 resultado(s).
+[23:33:10] Melhor alvo 'icone_extensao': x=1671, y=55, score=0.91.
+[23:33:10] Coordenada do alvo visual 'icone_extensao' salva no cache desta execucao.
+[23:33:10] Clicando alvo visual 'icone_extensao': x=1671, y=55.
+[23:33:11] Aguardando 3.78s (apos_icone_extensao: 2.0-5.0s).
+[23:33:12] Automacao pausada. Clique em Resumir para continuar.

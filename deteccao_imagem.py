@@ -365,6 +365,30 @@ def capturar_tela(regiao=None):
         return capturar_tela_imagegrab(regiao)
 
 
+def normalizar_escalas_template(escalas):
+    if not escalas:
+        return [1.0]
+
+    resultado = []
+    for escala in escalas:
+        try:
+            valor = round(float(escala), 4)
+        except (TypeError, ValueError):
+            continue
+
+        if valor <= 0:
+            continue
+
+        if valor not in resultado:
+            resultado.append(valor)
+
+    return resultado or [1.0]
+
+
+def cancelamento_solicitado(stop_event):
+    return stop_event is not None and stop_event.is_set()
+
+
 def _localizar_template_em_imagem(
     template_path,
     tela,
@@ -372,49 +396,93 @@ def _localizar_template_em_imagem(
     offset_y,
     confianca=0.85,
     max_resultados=10,
+    escalas=None,
+    tons_cinza=False,
+    stop_event=None,
 ):
+    if cancelamento_solicitado(stop_event):
+        return []
+
     template_path = Path(template_path)
     if not template_path.exists():
         raise FileNotFoundError(f"Template nao encontrado: {template_path}")
 
     template = Image.open(template_path).convert("RGB")
-
-    tela_cv = cv2.cvtColor(np.array(tela.convert("RGB")), cv2.COLOR_RGB2BGR)
-    template_cv = cv2.cvtColor(np.array(template), cv2.COLOR_RGB2BGR)
-    template_height, template_width = template_cv.shape[:2]
-    tela_height, tela_width = tela_cv.shape[:2]
-
-    if template_width > tela_width or template_height > tela_height:
+    if cancelamento_solicitado(stop_event):
         return []
 
-    resultado = cv2.matchTemplate(tela_cv, template_cv, cv2.TM_CCOEFF_NORMED)
-    pontos_y, pontos_x = np.where(resultado >= confianca)
+    if tons_cinza:
+        tela_cv = cv2.cvtColor(np.array(tela.convert("RGB")), cv2.COLOR_RGB2GRAY)
+        template_original_cv = cv2.cvtColor(np.array(template), cv2.COLOR_RGB2GRAY)
+    else:
+        tela_cv = cv2.cvtColor(np.array(tela.convert("RGB")), cv2.COLOR_RGB2BGR)
+        template_original_cv = cv2.cvtColor(np.array(template), cv2.COLOR_RGB2BGR)
+    template_original_height, template_original_width = template_original_cv.shape[:2]
+    tela_height, tela_width = tela_cv.shape[:2]
+
+    if template_original_width > tela_width or template_original_height > tela_height:
+        return []
 
     candidatos = []
-    for x, y in zip(pontos_x, pontos_y):
-        score = float(resultado[y, x])
-        centro_x = offset_x + int(x + template_width / 2)
-        centro_y = offset_y + int(y + template_height / 2)
-        candidatos.append(
-            {
-                "x": centro_x,
-                "y": centro_y,
-                "score": score,
-                "width": template_width,
-                "height": template_height,
-            }
-        )
+    dimensoes_usadas = set()
+    for escala in normalizar_escalas_template(escalas):
+        if cancelamento_solicitado(stop_event):
+            return []
+
+        template_width = max(1, int(round(template_original_width * escala)))
+        template_height = max(1, int(round(template_original_height * escala)))
+        dimensao = (template_width, template_height)
+        if dimensao in dimensoes_usadas:
+            continue
+        dimensoes_usadas.add(dimensao)
+
+        if template_width > tela_width or template_height > tela_height:
+            continue
+
+        if dimensao == (template_original_width, template_original_height):
+            template_cv = template_original_cv
+        else:
+            interpolacao = cv2.INTER_AREA if escala < 1 else cv2.INTER_CUBIC
+            template_cv = cv2.resize(
+                template_original_cv,
+                dimensao,
+                interpolation=interpolacao,
+            )
+
+        resultado = cv2.matchTemplate(tela_cv, template_cv, cv2.TM_CCOEFF_NORMED)
+        if cancelamento_solicitado(stop_event):
+            return []
+
+        pontos_y, pontos_x = np.where(resultado >= confianca)
+
+        for x, y in zip(pontos_x, pontos_y):
+            if cancelamento_solicitado(stop_event):
+                return []
+
+            score = float(resultado[y, x])
+            centro_x = offset_x + int(x + template_width / 2)
+            centro_y = offset_y + int(y + template_height / 2)
+            candidatos.append(
+                {
+                    "x": centro_x,
+                    "y": centro_y,
+                    "score": score,
+                    "width": template_width,
+                    "height": template_height,
+                    "scale": escala,
+                }
+            )
 
     candidatos.sort(key=lambda item: item["score"], reverse=True)
 
     filtrados = []
-    distancia_x = max(10, template_width // 2)
-    distancia_y = max(10, template_height // 2)
 
     for candidato in candidatos:
         duplicado = any(
-            abs(candidato["x"] - item["x"]) <= distancia_x
-            and abs(candidato["y"] - item["y"]) <= distancia_y
+            abs(candidato["x"] - item["x"])
+            <= max(10, max(candidato["width"], item["width"]) // 2)
+            and abs(candidato["y"] - item["y"])
+            <= max(10, max(candidato["height"], item["height"]) // 2)
             for item in filtrados
         )
 
@@ -429,8 +497,22 @@ def _localizar_template_em_imagem(
     return filtrados
 
 
-def localizar_template(template_path, confianca=0.85, regiao=None, max_resultados=10):
+def localizar_template(
+    template_path,
+    confianca=0.85,
+    regiao=None,
+    max_resultados=10,
+    escalas=None,
+    tons_cinza=False,
+    stop_event=None,
+):
+    if cancelamento_solicitado(stop_event):
+        return []
+
     tela, offset_x, offset_y = capturar_tela(regiao)
+    if cancelamento_solicitado(stop_event):
+        return []
+
     return _localizar_template_em_imagem(
         template_path,
         tela,
@@ -438,6 +520,9 @@ def localizar_template(template_path, confianca=0.85, regiao=None, max_resultado
         offset_y,
         confianca=confianca,
         max_resultados=max_resultados,
+        escalas=escalas,
+        tons_cinza=tons_cinza,
+        stop_event=stop_event,
     )
 
 
@@ -447,11 +532,22 @@ def localizar_templates(
     regiao=None,
     max_resultados=10,
     parar_score=None,
+    escalas=None,
+    tons_cinza=False,
+    stop_event=None,
 ):
+    if cancelamento_solicitado(stop_event):
+        return []
+
     resultados = []
     tela, offset_x, offset_y = capturar_tela(regiao)
+    if cancelamento_solicitado(stop_event):
+        return []
 
     for template_path in template_paths:
+        if cancelamento_solicitado(stop_event):
+            return []
+
         resultados_template = _localizar_template_em_imagem(
             template_path,
             tela,
@@ -459,6 +555,9 @@ def localizar_templates(
             offset_y,
             confianca=confianca,
             max_resultados=max_resultados,
+            escalas=escalas,
+            tons_cinza=tons_cinza,
+            stop_event=stop_event,
         )
 
         for resultado in resultados_template:

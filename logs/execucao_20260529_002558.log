@@ -1,0 +1,30 @@
+[00:25:58] ======================================================================
+[00:25:58] Fluxo selecionado iniciado
+[00:25:58] Arquivo de log: C:\Users\giorg\Documents\GitHub\AI_REWARDS\logs\execucao_20260529_002558.log
+[00:25:58] ======================================================================
+[00:25:58] Iniciando fluxo selecionado...
+[00:25:58] Preparando automacao completa.
+[00:25:58] Coordenadas carregadas: {'icone_extensao': (-313, 64), 'double_click_scroll': (-27, 303), 'card_1': (-622, 400), 'card_2': (-596, 510), 'card_3': (-581, 608), 'voltar': (-1894, 54)}
+[00:25:58] Abrindo o Microsoft Edge...
+[00:25:58] Pressionando tecla Windows.
+[00:25:59] Digitando app no menu iniciar: EDGE
+[00:25:59] Pressionando Enter para abrir o app.
+[00:26:00] Aguardando Edge abrir por 4.00s.
+[00:26:04] Clicando no icone da extensao...
+[00:26:04] Abrindo extensao por deteccao de imagem.
+[00:26:04] Busca do alvo 'icone_extensao' limitada a area provavel: x=-1920, y=0, w=3840, h=190.
+[00:26:04] Rodando deteccao do alvo 'icone_extensao' com 8 template(s), confianca 0.82, match forte 0.95.
+[00:26:06] Alvo 'icone_extensao' retornou 1 resultado(s).
+[00:26:06] Melhor alvo 'icone_extensao': x=1671, y=55, score=0.96, escala=1.00.
+[00:26:06] Coordenada do alvo visual 'icone_extensao' salva no cache desta execucao.
+[00:26:06] Clicando alvo visual 'icone_extensao': x=1671, y=55.
+[00:26:06] Aguardando 2.85s (apos_icone_extensao: 2.0-5.0s).
+[00:26:09] Rolando painel e procurando cards com +10/+5 ate o fim do scroll (limite de seguranca: 40).
+[00:26:09] Focando area de scroll pelo alvo treinado 'Exibir painel'.
+[00:26:09] Rodando deteccao do alvo 'exibir_painel' com 19 template(s), confianca 0.82, match forte 0.95.
+[00:26:10] Automacao pausada. Clique em Resumir para continuar.
+[00:26:13] Cancelando automacao... aguardando etapa atual parar.
+[00:26:14] Alvo 'exibir_painel' retornou 0 resultado(s).
+[00:26:14] Nao consegui usar 'Exibir painel'. Vou tentar pelo painel detectado automaticamente.
+[00:26:14] Automacao interrompida.
+[00:26:14] Finalizando thread do fluxo completo.

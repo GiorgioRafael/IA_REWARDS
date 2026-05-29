@@ -1,0 +1,28 @@
+[00:17:59] ======================================================================
+[00:17:59] Fluxo selecionado iniciado
+[00:17:59] Arquivo de log: C:\Users\giorg\Documents\GitHub\AI_REWARDS\logs\execucao_20260529_001759.log
+[00:17:59] ======================================================================
+[00:17:59] Iniciando fluxo selecionado...
+[00:17:59] Preparando automacao completa.
+[00:17:59] Coordenadas carregadas: {'icone_extensao': (-313, 64), 'double_click_scroll': (-27, 303), 'card_1': (-622, 400), 'card_2': (-596, 510), 'card_3': (-581, 608), 'voltar': (-1894, 54)}
+[00:17:59] Abrindo o Microsoft Edge...
+[00:17:59] Pressionando tecla Windows.
+[00:18:00] Digitando app no menu iniciar: EDGE
+[00:18:01] Pressionando Enter para abrir o app.
+[00:18:01] Aguardando Edge abrir por 4.00s.
+[00:18:05] Clicando no icone da extensao...
+[00:18:05] Abrindo extensao por deteccao de imagem.
+[00:18:05] Busca do alvo 'icone_extensao' limitada a area provavel: x=-1920, y=0, w=3840, h=190.
+[00:18:05] Rodando deteccao do alvo 'icone_extensao' com 8 template(s), confianca 0.82, match forte 0.95.
+[00:18:07] Alvo 'icone_extensao' retornou 1 resultado(s).
+[00:18:07] Melhor alvo 'icone_extensao': x=1671, y=55, score=0.91, escala=1.00.
+[00:18:07] Coordenada do alvo visual 'icone_extensao' salva no cache desta execucao.
+[00:18:07] Clicando alvo visual 'icone_extensao': x=1671, y=55.
+[00:18:07] Aguardando 2.94s (apos_icone_extensao: 2.0-5.0s).
+[00:18:10] Rolando painel e procurando cards com +10/+5 ate o fim do scroll (limite de seguranca: 40).
+[00:18:10] Focando area de scroll pelo alvo treinado 'Exibir painel'.
+[00:18:10] Rodando deteccao do alvo 'exibir_painel' com 19 template(s), confianca 0.82, match forte 0.95.
+[00:18:24] Alvo 'exibir_painel' retornou 0 resultado(s).
+[00:18:24] Alvo 'exibir_painel' nao encontrado no tamanho original. Tentando busca flexivel com escalas [0.9, 0.95, 1.0, 1.05, 1.1] e confianca 0.70.
+[00:18:28] Automacao pausada. Clique em Resumir para continuar.
+[00:19:33] Busca flexivel do alvo 'exibir_painel' retornou 0 resultado(s).
