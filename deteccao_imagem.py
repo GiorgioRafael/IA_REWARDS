@@ -975,7 +975,11 @@ def detectar_scrollbar_thumb_em_imagem(
     if altura <= 0 or largura <= 0:
         return None
 
-    x0 = max(0, largura - int(faixa_direita))
+    faixa_busca = min(
+        largura,
+        max(int(faixa_direita), min(160, max(48, largura // 3))),
+    )
+    x0 = max(0, largura - faixa_busca)
     roi = arr[:, x0:largura]
     alvo = np.array(cor, dtype=np.int16)
     diff = np.abs(roi.astype(np.int16) - alvo).max(axis=2)

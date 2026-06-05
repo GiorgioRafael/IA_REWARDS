@@ -2,11 +2,23 @@ import argparse
 import ctypes
 import json
 import random
+import re
 import time
+import unicodedata
 from pathlib import Path
 from ctypes import wintypes
 
 from PIL import ImageChops, ImageStat
+
+try:
+    import cv2
+    import numpy as np
+
+    VISAO_ARRAY_DISPONIVEL = True
+except Exception:
+    cv2 = None
+    np = None
+    VISAO_ARRAY_DISPONIVEL = False
 
 try:
     import pyautogui
@@ -48,7 +60,9 @@ BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
 SW_RESTORE = 9
 SW_MAXIMIZE = 3
+WM_CLOSE = 0x0010
 MONITORINFOF_PRIMARY = 1
+MONITOR_DEFAULTTONEAREST = 2
 
 
 class RECT(ctypes.Structure):
@@ -168,13 +182,99 @@ def obter_monitor_secundario():
     return sorted(monitores, key=lambda item: (item["x"], item["y"]))[1]
 
 
+def obter_monitor_da_janela(hwnd):
+    if not hwnd:
+        return None
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    hmonitor = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+    if not hmonitor:
+        return None
+
+    info = MONITORINFO()
+    info.cbSize = ctypes.sizeof(MONITORINFO)
+    if not user32.GetMonitorInfoW(hmonitor, ctypes.byref(info)):
+        return None
+
+    area = rect_para_dict(info.rcMonitor)
+    trabalho = rect_para_dict(info.rcWork)
+    return {
+        **area,
+        "work_x": trabalho["x"],
+        "work_y": trabalho["y"],
+        "work_width": trabalho["width"],
+        "work_height": trabalho["height"],
+        "primary": bool(info.dwFlags & MONITORINFOF_PRIMARY),
+    }
+
+
+def obter_janela_ativa():
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    return user32.GetForegroundWindow()
+
+
+def obter_titulo_janela(hwnd):
+    if not hwnd:
+        return ""
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    tamanho = user32.GetWindowTextLengthW(hwnd)
+    if tamanho <= 0:
+        return ""
+
+    buffer = ctypes.create_unicode_buffer(tamanho + 1)
+    user32.GetWindowTextW(hwnd, buffer, tamanho + 1)
+    return buffer.value.strip()
+
+
+def normalizar_titulo_janela(texto):
+    texto = "" if texto is None else str(texto)
+    texto = unicodedata.normalize("NFKC", texto)
+    texto = "".join(
+        caractere
+        for caractere in texto
+        if unicodedata.category(caractere) != "Cf"
+    )
+    texto = re.sub(r"\s+", " ", texto)
+    return texto.strip().lower()
+
+
+def compactar_titulo_janela(texto):
+    return re.sub(r"[^a-z0-9]+", "", normalizar_titulo_janela(texto))
+
+
+def titulo_contem_parte(titulo, parte):
+    titulo_normalizado = normalizar_titulo_janela(titulo)
+    parte_normalizada = normalizar_titulo_janela(parte)
+    if not parte_normalizada:
+        return False
+
+    if parte_normalizada in titulo_normalizado:
+        return True
+
+    parte_compacta = compactar_titulo_janela(parte)
+    if not parte_compacta:
+        return False
+
+    return parte_compacta in compactar_titulo_janela(titulo)
+
+
+def janela_parece_edge(hwnd, navegador=None):
+    titulo = obter_titulo_janela(hwnd)
+    if not titulo:
+        return False
+
+    navegador = navegador or {}
+    partes = [
+        navegador.get("titulo_janela", "Microsoft Edge"),
+        "Microsoft Edge",
+    ]
+    return any(titulo_contem_parte(titulo, parte) for parte in partes)
+
+
 def encontrar_janela_por_titulo(partes_titulo):
     user32 = ctypes.WinDLL("user32", use_last_error=True)
-    partes = [
-        str(parte).strip().lower()
-        for parte in partes_titulo
-        if str(parte).strip()
-    ]
+    partes = [str(parte).strip() for parte in partes_titulo if str(parte).strip()]
     if not partes:
         return None, None
 
@@ -192,8 +292,7 @@ def encontrar_janela_por_titulo(partes_titulo):
         buffer = ctypes.create_unicode_buffer(tamanho + 1)
         user32.GetWindowTextW(hwnd, buffer, tamanho + 1)
         titulo = buffer.value.strip()
-        titulo_normalizado = titulo.lower()
-        if any(parte in titulo_normalizado for parte in partes):
+        if any(titulo_contem_parte(titulo, parte) for parte in partes):
             encontrados.append((hwnd, titulo))
             return False
 
@@ -204,6 +303,66 @@ def encontrar_janela_por_titulo(partes_titulo):
         return None, None
 
     return encontrados[0]
+
+
+def janela_windows_valida(hwnd):
+    if not hwnd:
+        return False
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    return bool(user32.IsWindow(hwnd) and user32.IsWindowVisible(hwnd))
+
+
+def encontrar_janela_edge(config, preferir_ativa=True):
+    navegador = config.get("navegador", {})
+    if preferir_ativa:
+        hwnd_ativo = obter_janela_ativa()
+        if janela_windows_valida(hwnd_ativo) and janela_parece_edge(hwnd_ativo, navegador):
+            return hwnd_ativo, obter_titulo_janela(hwnd_ativo)
+
+    titulo_config = navegador.get("titulo_janela", "Microsoft Edge")
+    return encontrar_janela_por_titulo([titulo_config, "Microsoft Edge"])
+
+
+def focar_janela_edge(hwnd, config, stop_event=None, status_callback=None):
+    if deve_parar(stop_event):
+        return False
+
+    if not janela_windows_valida(hwnd):
+        avisar(status_callback, "A janela armazenada do Edge nao existe mais.", "red")
+        return False
+
+    if not janela_parece_edge(hwnd, config.get("navegador", {})):
+        avisar(status_callback, "A janela armazenada nao parece mais ser do Edge.", "red")
+        return False
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, SW_RESTORE)
+    user32.SetForegroundWindow(hwnd)
+    return dormir(0.4, stop_event)
+
+
+def fechar_janela_edge(hwnd, timeout=10, stop_event=None, status_callback=None):
+    if not janela_windows_valida(hwnd):
+        return True
+
+    titulo = obter_titulo_janela(hwnd) or "janela Edge"
+    avisar(status_callback, f"Fechando Edge pelo X/fechamento da janela: {titulo}.", "orange")
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
+
+    limite = time.time() + max(1.0, float(timeout))
+    while time.time() < limite:
+        if deve_parar(stop_event):
+            return False
+        if not janela_windows_valida(hwnd):
+            avisar(status_callback, "Janela Edge fechada com sucesso.", "green")
+            return True
+        time.sleep(0.2)
+
+    avisar(status_callback, "A janela Edge nao fechou dentro do timeout.", "red")
+    return False
 
 
 def mover_janela_para_monitor(hwnd, monitor):
@@ -221,7 +380,24 @@ def mover_janela_para_monitor(hwnd, monitor):
     user32.SetForegroundWindow(hwnd)
 
 
-def forcar_edge_no_segundo_monitor(config, stop_event=None, status_callback=None):
+def monitor_eh_secundario(hwnd):
+    monitor = obter_monitor_da_janela(hwnd)
+    return bool(monitor is not None and not monitor.get("primary"))
+
+
+def centro_monitor(monitor):
+    return (
+        int(monitor["x"]) + int(monitor["width"]) // 2,
+        int(monitor["y"]) + int(monitor["height"]) // 2,
+    )
+
+
+def forcar_edge_no_segundo_monitor(
+    config,
+    stop_event=None,
+    status_callback=None,
+    hwnd_preferido=None,
+):
     navegador = config.get("navegador", {})
     if not navegador.get("forcar_segundo_monitor", False):
         return True
@@ -229,27 +405,164 @@ def forcar_edge_no_segundo_monitor(config, stop_event=None, status_callback=None
     if deve_parar(stop_event):
         return False
 
-    titulo_config = navegador.get("titulo_janela", "Microsoft Edge")
-    partes_titulo = [titulo_config, "Microsoft Edge"]
-    avisar(status_callback, "Procurando janela do Edge para enviar ao segundo monitor.")
-    hwnd, titulo = encontrar_janela_por_titulo(partes_titulo)
-    if hwnd is None:
-        avisar(status_callback, "Nao encontrei a janela do Edge para enviar ao segundo monitor.", "orange")
+    monitor_destino = obter_monitor_secundario()
+    if monitor_destino is None:
+        avisar(
+            status_callback,
+            "Nao encontrei monitor secundario configurado no Windows. Vou continuar sem mover.",
+            "orange",
+        )
         return True
 
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    user32.ShowWindow(hwnd, SW_RESTORE)
-    user32.SetForegroundWindow(hwnd)
-    if not dormir(0.4, stop_event):
-        return False
+    hwnd = None
+    titulo = None
+    if janela_windows_valida(hwnd_preferido) and janela_parece_edge(hwnd_preferido, navegador):
+        hwnd = hwnd_preferido
+        titulo = obter_titulo_janela(hwnd) or "janela armazenada do Edge"
+        avisar(status_callback, f"Usando janela Edge da sessao: {titulo}")
+    elif navegador.get("buscar_titulo_janela", False):
+        titulo_config = navegador.get("titulo_janela", "Microsoft Edge")
+        partes_titulo = [titulo_config, "Microsoft Edge"]
+        avisar(status_callback, "Buscando janela do Edge pelo titulo antes dos atalhos.")
+        hwnd, titulo = encontrar_janela_por_titulo(partes_titulo)
+        if hwnd is not None:
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
+            user32.ShowWindow(hwnd, SW_RESTORE)
+            user32.SetForegroundWindow(hwnd)
+            if not dormir(0.4, stop_event):
+                return False
+        else:
+            avisar(
+                status_callback,
+                "Nao encontrei a janela pelo titulo. Vou validar a janela ativa como fallback.",
+                "orange",
+            )
+            if not dormir(0.2, stop_event):
+                return False
+            hwnd_ativo = obter_janela_ativa()
+            titulo_ativo = obter_titulo_janela(hwnd_ativo)
+            if janela_parece_edge(hwnd_ativo, navegador):
+                hwnd = hwnd_ativo
+                titulo = titulo_ativo or "janela ativa do Edge"
+                avisar(status_callback, f"Janela ativa parece ser Edge: {titulo}")
+            else:
+                avisar(
+                    status_callback,
+                    f"Janela ativa nao parece ser Edge ({titulo_ativo or 'sem titulo'}). "
+                    "Vou interromper para nao mover/clicar na janela errada.",
+                    "red",
+                )
+                return False
+    else:
+        avisar(
+            status_callback,
+            "Busca por titulo desativada. Vou validar a janela ativa antes de mover.",
+        )
+        if not dormir(0.2, stop_event):
+            return False
+        hwnd_ativo = obter_janela_ativa()
+        titulo_ativo = obter_titulo_janela(hwnd_ativo)
+        if janela_parece_edge(hwnd_ativo, navegador):
+            hwnd = hwnd_ativo
+            titulo = titulo_ativo or "janela ativa do Edge"
+            avisar(status_callback, f"Janela ativa parece ser Edge: {titulo}")
+        else:
+            avisar(
+                status_callback,
+                f"Janela ativa nao parece ser Edge ({titulo_ativo or 'sem titulo'}). "
+                "Vou procurar o Edge pelo titulo como fallback.",
+                "orange",
+            )
+            hwnd, titulo = encontrar_janela_por_titulo(["Microsoft Edge"])
+            if hwnd is None:
+                avisar(
+                    status_callback,
+                    "Nao encontrei a janela do Edge para mover ao segundo monitor.",
+                    "red",
+                )
+                return False
 
-    avisar(status_callback, "Aplicando atalhos: Win+Shift+Up e Win+Shift+Left.")
+    if hwnd is not None:
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.ShowWindow(hwnd, SW_RESTORE)
+        user32.SetForegroundWindow(hwnd)
+        if not dormir(0.3, stop_event):
+            return False
+
+    hwnd_atual = hwnd or obter_janela_ativa()
+    monitor_atual = obter_monitor_da_janela(hwnd_atual)
+    ja_esta_no_secundario = bool(
+        monitor_atual is not None and not monitor_atual.get("primary")
+    )
+
+    if monitor_atual is None:
+        avisar(
+            status_callback,
+            "Nao consegui identificar o monitor atual da janela. Vou aplicar o fluxo completo de atalhos.",
+            "orange",
+        )
+    elif ja_esta_no_secundario:
+        avisar(
+            status_callback,
+            "Edge ja esta em um monitor secundario. Vou normalizar tamanho/posicao sem usar Win+Shift.",
+            "green",
+        )
+    else:
+        avisar(
+            status_callback,
+            "Edge esta no monitor principal. Vou enviar para o segundo monitor.",
+        )
+
+    if hwnd is not None:
+        avisar(
+            status_callback,
+            "Ajustando Edge diretamente para o retangulo do monitor secundario pela API do Windows.",
+        )
+        mover_janela_para_monitor(hwnd, monitor_destino)
+        if not dormir(0.5, stop_event):
+            return False
+        if monitor_eh_secundario(hwnd):
+            avisar(status_callback, "Edge confirmado e normalizado no monitor secundario.", "green")
+            return True
+
+        avisar(
+            status_callback,
+            "Movimento direto nao foi confirmado. Vou tentar o atalho como fallback.",
+            "orange",
+        )
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.ShowWindow(hwnd, SW_RESTORE)
+        user32.SetForegroundWindow(hwnd)
+        if not dormir(0.3, stop_event):
+            return False
+
+    direcao = "left"
+    if monitor_atual is not None and monitor_destino is not None:
+        atual_x, _atual_y = centro_monitor(monitor_atual)
+        destino_x, _destino_y = centro_monitor(monitor_destino)
+        direcao = "left" if destino_x < atual_x else "right"
+
+    avisar(status_callback, "Aplicando atalho: Win+Shift+Up.")
     pyautogui.hotkey("win", "shift", "up")
     if not dormir(0.3, stop_event):
         return False
 
-    pyautogui.hotkey("win", "shift", "left")
-    avisar(status_callback, f"Atalhos aplicados no Edge: {titulo}", "green")
+    avisar(status_callback, f"Aplicando atalho: Win+Shift+{direcao.title()}.")
+    pyautogui.hotkey("win", "shift", direcao)
+    if not dormir(0.5, stop_event):
+        return False
+
+    if hwnd is not None and not monitor_eh_secundario(hwnd):
+        avisar(
+            status_callback,
+            "Falha ao confirmar Edge no monitor secundario depois dos atalhos. "
+            "Vou interromper para nao clicar no monitor errado.",
+            "red",
+        )
+        return False
+
+    titulo_log = titulo if hwnd is not None else "janela ativa"
+    avisar(status_callback, f"Edge movido/preparado no monitor secundario: {titulo_log}", "green")
     return dormir(0.5, stop_event)
 
 
@@ -295,6 +608,7 @@ def abrir_edge(config, stop_event=None, status_callback=None):
     if deve_parar(stop_event):
         return False
 
+    limpar_cache_alvos_visuais(config)
     avisar(status_callback, "Pressionando tecla Windows.")
     pyautogui.press("win")
     if not dormir(tempos["apos_windows"], stop_event):
@@ -426,7 +740,8 @@ def obter_config_deteccao(config):
         {
             "ativada": False,
             "usar_fallback_coordenadas": True,
-            "busca_flexivel": True,
+            "usar_variacoes": False,
+            "busca_flexivel": False,
             "confianca_flexivel": 0.78,
             "escalas_flexiveis": [0.9, 0.95, 1.0, 1.05, 1.1],
         },
@@ -452,6 +767,11 @@ def limpar_cache_execucao(config):
     config["_runtime_cache"] = {
         "alvos_visuais": {},
     }
+
+
+def limpar_cache_alvos_visuais(config):
+    cache = obter_cache_execucao(config)
+    cache["alvos_visuais"] = {}
 
 
 def obter_cache_execucao(config):
@@ -601,6 +921,17 @@ def obter_confianca_flexivel(config_obj, confianca_padrao):
     return max(0.68, float(confianca_padrao) - 0.12)
 
 
+def usar_variacoes_deteccao(config, alvo_config=None):
+    deteccao = obter_config_deteccao(config)
+    if not bool(deteccao.get("usar_variacoes", False)):
+        return False
+
+    if alvo_config is not None and alvo_config.get("usar_variacoes") is False:
+        return False
+
+    return True
+
+
 def obter_config_alvo_visual(config, nome):
     alvos = config.get("alvos_visuais", {})
     alvo = alvos.get(nome)
@@ -740,7 +1071,12 @@ def listar_templates_tracker_estado(config, minutos):
     return sorted(estado_dir.glob("*.png"))
 
 
-def detectar_estado_tracker_edge(config, status_callback=None, stop_event=None):
+def detectar_estado_tracker_edge(
+    config,
+    status_callback=None,
+    stop_event=None,
+    usar_regiao_painel=True,
+):
     if deve_parar(stop_event):
         return None
 
@@ -762,7 +1098,7 @@ def detectar_estado_tracker_edge(config, status_callback=None, stop_event=None):
         )
         return None
 
-    regiao = obter_regiao_painel_rewards(config, status_callback)
+    regiao = obter_regiao_painel_rewards(config, status_callback) if usar_regiao_painel else None
     confianca = float(tracker.get("confianca", 0.82))
     avisar(
         status_callback,
@@ -808,6 +1144,82 @@ def detectar_estado_tracker_edge(config, status_callback=None, stop_event=None):
         "y": int(melhor["y"]),
         "template": melhor.get("template"),
     }
+
+
+def detectar_estado_rewards_atual(config, status_callback=None, stop_event=None):
+    if deve_parar(stop_event):
+        return {"estado": "interrompido", "ok": False}
+
+    hwnd_ativo = obter_janela_ativa()
+    titulo = obter_titulo_janela(hwnd_ativo)
+    titulo_normalizado = normalizar_titulo_janela(titulo)
+    edge_ativo = janela_windows_valida(hwnd_ativo) and janela_parece_edge(
+        hwnd_ativo,
+        config.get("navegador", {}),
+    )
+
+    x_exibir = y_exibir = None
+    if listar_templates_alvo_visual(config, "exibir_painel"):
+        x_exibir, y_exibir, _cache = obter_coordenada_alvo_visual(
+            config,
+            "exibir_painel",
+            status_callback=status_callback,
+            stop_event=stop_event,
+        )
+
+    painel = obter_regiao_painel_rewards(config, status_callback)
+
+    if x_exibir is not None and y_exibir is not None:
+        estado = {
+            "estado": "popup_rewards_ok",
+            "ok": True,
+            "titulo": titulo,
+            "painel": painel,
+            "anchor_exibir_painel": {"x": int(x_exibir), "y": int(y_exibir)},
+        }
+    elif "rewards" in titulo_normalizado:
+        estado = {
+            "estado": "pagina_rewards_completa",
+            "ok": False,
+            "titulo": titulo,
+            "painel": painel,
+        }
+    elif painel is not None:
+        estado = {
+            "estado": "popup_rewards_inutilizavel",
+            "ok": False,
+            "titulo": titulo,
+            "painel": painel,
+        }
+    elif edge_ativo:
+        estado = {
+            "estado": "edge_normal",
+            "ok": False,
+            "titulo": titulo,
+            "painel": None,
+        }
+    else:
+        estado = {
+            "estado": "desconhecido",
+            "ok": False,
+            "titulo": titulo,
+            "painel": painel,
+        }
+
+    painel_log = estado.get("painel")
+    painel_desc = (
+        f"x={painel_log['x']}, y={painel_log['y']}, "
+        f"w={painel_log['width']}, h={painel_log['height']}"
+        if painel_log is not None
+        else "sem painel"
+    )
+    avisar(
+        status_callback,
+        "Estado Rewards detectado: "
+        f"{estado['estado']} ({painel_desc}; titulo={titulo or 'sem titulo'}).",
+        "green" if estado.get("ok") else "orange",
+    )
+    return estado
 
 
 def abrir_ver_tudo_e_detectar_tracker_edge(
@@ -1020,7 +1432,7 @@ def localizar_alvo_visual(config, nome, status_callback=None, regiao=None, stop_
     if deve_parar(stop_event):
         return None
 
-    if not resultados and alvo_config.get("busca_flexivel", True):
+    if not resultados and usar_variacoes_deteccao(config, alvo_config):
         escalas = obter_escalas_flexiveis(alvo_config)
         confianca_flexivel = obter_confianca_flexivel(alvo_config, confianca)
         avisar(
@@ -1069,6 +1481,12 @@ def localizar_alvo_visual(config, nome, status_callback=None, regiao=None, stop_
                 return None
 
     if not resultados:
+        if not usar_variacoes_deteccao(config, alvo_config):
+            avisar(
+                status_callback,
+                f"Alvo '{nome}' nao encontrado. Variacoes de tamanho/cor estao desativadas.",
+                "orange",
+            )
         return None
 
     melhor = resultados[0]
@@ -1239,12 +1657,92 @@ def alvo_ja_clicado(alvo, alvos_clicados, margem=45):
     )
 
 
+def localizar_badges_bonus_por_cor(regiao, status_callback=None):
+    if (
+        regiao is None
+        or capturar_tela is None
+        or not VISAO_ARRAY_DISPONIVEL
+    ):
+        return []
+
+    try:
+        imagem, offset_x, offset_y = capturar_tela(regiao)
+        arr = np.array(imagem.convert("RGB"))
+    except Exception as exc:
+        avisar(status_callback, f"Busca de bonus por cor falhou ao capturar painel: {exc}", "orange")
+        return []
+
+    altura, largura = arr.shape[:2]
+    if altura <= 0 or largura <= 0:
+        return []
+
+    inicio_x = max(0, int(largura * 0.58))
+    roi = arr[:, inicio_x:largura]
+    r = roi[:, :, 0]
+    g = roi[:, :, 1]
+    b = roi[:, :, 2]
+    mask = (
+        (r < 85)
+        & (g > 70)
+        & (g < 175)
+        & (b > 75)
+        & (b < 190)
+        & ((g.astype(np.int16) - r.astype(np.int16)) > 15)
+        & ((b.astype(np.int16) - r.astype(np.int16)) > 20)
+    ).astype(np.uint8) * 255
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+    num_labels, _labels, stats, _centros = cv2.connectedComponentsWithStats(mask, 8)
+    candidatos = []
+    for label in range(1, num_labels):
+        x, y, width, height, area = stats[label]
+        if width < 22 or width > 88:
+            continue
+        if height < 18 or height > 48:
+            continue
+        if area < 180:
+            continue
+
+        global_x = int(offset_x + inicio_x + x + width / 2)
+        global_y = int(offset_y + y + height / 2)
+        candidatos.append(
+            {
+                "x": global_x,
+                "y": global_y,
+                "width": int(width),
+                "height": int(height),
+                "score": 0.86,
+                "template": "detector_cor_selo_bonus",
+            }
+        )
+
+    candidatos.sort(key=lambda item: (item["y"], -item["score"]))
+    if candidatos:
+        avisar(
+            status_callback,
+            f"Busca de bonus por cor encontrou {len(candidatos)} selo(s) candidato(s).",
+        )
+    return candidatos
+
+
 def localizar_alvo_bonus(config, alvos_clicados, status_callback=None, stop_event=None):
     if deve_parar(stop_event):
         return None
 
     deteccao = obter_config_deteccao(config)
-    templates = listar_templates_bonus(config)
+    templates_plus_10 = listar_templates_plus_10(config) if deteccao.get("usar_plus_10", True) else []
+    templates_plus_5 = listar_templates_plus_5(config) if deteccao.get("usar_plus_5", True) else []
+    templates = templates_plus_10 + templates_plus_5
+
+    if deteccao.get("usar_plus_5", True) and not templates_plus_5:
+        avisar(
+            status_callback,
+            "Atencao: +5 esta ativado, mas nao ha template treinado em treino_plus_5. "
+            "Vou depender apenas do detector por cor/geometria para +5.",
+            "orange",
+        )
 
     if not templates:
         avisar(status_callback, "Nenhum template +10/+5 disponivel para deteccao.", "orange")
@@ -1351,7 +1849,15 @@ def localizar_alvo_bonus(config, alvos_clicados, status_callback=None, stop_even
         if alvo is not None:
             return alvo
 
-    if deteccao.get("busca_flexivel", True):
+    candidatos_cor = localizar_badges_bonus_por_cor(regiao_deteccao, status_callback)
+    if candidatos_cor:
+        alvo, ignorados_clicados, ignorados_invalidos = escolher_alvo(candidatos_cor)
+        if deve_parar(stop_event):
+            return None
+        if alvo is not None:
+            return alvo
+
+    if usar_variacoes_deteccao(config, deteccao):
         escalas = obter_escalas_flexiveis(deteccao)
         confianca_flexivel = obter_confianca_flexivel(
             deteccao,
@@ -1406,6 +1912,12 @@ def localizar_alvo_bonus(config, alvos_clicados, status_callback=None, stop_even
             return None
         if alvo is not None:
             return alvo
+    else:
+        avisar(
+            status_callback,
+            "Nenhum bonus novo encontrado. Variacoes de tamanho/cor estao desativadas.",
+            "orange",
+        )
 
     avisar(
         status_callback,
@@ -1609,6 +2121,62 @@ def limitar_regiao_virtual(x, y, width, height):
     }
 
 
+def ponto_dentro_regiao(x, y, regiao, margem=0):
+    if regiao is None:
+        return False
+
+    return (
+        int(regiao["x"]) - margem <= int(x) <= int(regiao["x"] + regiao["width"]) + margem
+        and int(regiao["y"]) - margem <= int(y) <= int(regiao["y"] + regiao["height"]) + margem
+    )
+
+
+def obter_anchor_exibir_painel(config):
+    cache = obter_cache_execucao(config).get("alvos_visuais", {})
+    alvo = cache.get("exibir_painel")
+    if not alvo:
+        return None
+
+    try:
+        return int(alvo["x"]), int(alvo["y"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def derivar_regiao_painel_por_exibir_painel(config, status_callback=None):
+    anchor = obter_anchor_exibir_painel(config)
+    if anchor is None:
+        return None
+
+    x, y = anchor
+    deteccao = obter_config_deteccao(config)
+    largura = int(deteccao.get("painel_anchor_width", 560))
+    altura = int(deteccao.get("painel_anchor_height", 1120))
+    offset_x = int(deteccao.get("painel_anchor_x_offset", -380))
+    offset_y = int(deteccao.get("painel_anchor_y_offset", -280))
+    regiao = limitar_regiao_virtual(x + offset_x, y + offset_y, largura, altura)
+    if regiao is None:
+        return None
+
+    regiao.update(
+        {
+            "score": None,
+            "logo_score": None,
+            "close_score": None,
+            "light_ratio": None,
+            "origem": "exibir_painel_anchor",
+        }
+    )
+    avisar(
+        status_callback,
+        "Regiao do painel derivada de 'Exibir painel': "
+        f"anchor=({x},{y}), x={regiao['x']}, y={regiao['y']}, "
+        f"w={regiao['width']}, h={regiao['height']}.",
+        "orange",
+    )
+    return regiao
+
+
 def obter_regiao_padrao_alvo_visual(nome):
     virtual_x, virtual_y, virtual_width, virtual_height = obter_bbox_virtual()
     if nome in {"icone_extensao", "voltar"}:
@@ -1702,9 +2270,27 @@ def detectar_painel_atual(config, status_callback=None):
 
 
 def obter_regiao_painel_rewards(config, status_callback=None):
+    anchor = obter_anchor_exibir_painel(config)
     painel = detectar_painel_atual(config, status_callback)
     if painel is not None:
+        if anchor is not None and not ponto_dentro_regiao(anchor[0], anchor[1], painel, margem=80):
+            avisar(
+                status_callback,
+                "Painel detectado automaticamente nao contem o ponto de 'Exibir painel'. "
+                f"Painel=({painel['x']},{painel['y']},{painel['width']},{painel['height']}), "
+                f"anchor=({anchor[0]},{anchor[1]}). Vou ignorar esse painel.",
+                "orange",
+            )
+            painel_anchor = derivar_regiao_painel_por_exibir_painel(config, status_callback)
+            if painel_anchor is not None:
+                return painel_anchor
+            return None
+
         return painel
+
+    painel_anchor = derivar_regiao_painel_por_exibir_painel(config, status_callback)
+    if painel_anchor is not None:
+        return painel_anchor
 
     return None
 
@@ -1859,6 +2445,20 @@ def analisar_estado_scroll(config, antes, depois, direcao, status_callback=None)
             "mudou": moveu_thumb,
             "diferenca": float(delta),
             "modo": "scrollbar",
+        }
+
+    if deteccao.get("usar_scrollbar_por_cor", True) and deteccao.get("usar_painel_para_scroll", True):
+        avisar(
+            status_callback,
+            "Nao consegui confirmar a barra interna do painel. "
+            "Nao vou declarar fim do scroll usando apenas mudanca visual da pagina.",
+            "orange",
+        )
+        return {
+            "fim_scroll": False,
+            "mudou": True,
+            "diferenca": None,
+            "modo": "scrollbar_indisponivel",
         }
 
     if antes is None or depois is None:
@@ -2048,6 +2648,18 @@ def rolar_area_extensao(
 
     x, y = get_mouse_position()
 
+    if deteccao.get("usar_painel_para_scroll", True):
+        painel_mouse = obter_regiao_painel_rewards(config, status_callback)
+        if painel_mouse is not None and not ponto_dentro_regiao(x, y, painel_mouse, margem=40):
+            avisar(
+                status_callback,
+                "Mouse nao esta dentro do painel Rewards antes do scroll. "
+                f"mouse=({x},{y}); painel=({painel_mouse['x']},{painel_mouse['y']},"
+                f"{painel_mouse['width']},{painel_mouse['height']}).",
+                "red",
+            )
+            return {"ok": False, "fim_scroll": False, "mudou": False, "diferenca": None}
+
     if detectar_fim:
         try:
             estado_antes_detector, regiao_detector = capturar_assinatura_scroll(
@@ -2226,6 +2838,8 @@ def executar_cards_por_imagem(
             ):
                 return False
 
+            limpar_cache_execucao(config)
+            avisar(status_callback, "Cache visual limpo depois de voltar do card.")
             avisar(status_callback, "Voltamos do card. Conferindo a mesma area antes de rolar.")
             continue
 
@@ -2261,6 +2875,17 @@ def executar_cards_por_imagem(
             alvos_clicados = []
         estado_scroll["ticks_parciais"] = 0
         fim_scroll_detectado = bool(resultado_scroll.get("fim_scroll"))
+        if (
+            fim_scroll_detectado
+            and resultado_scroll.get("modo_detector") == "visual_painel"
+            and scrolls < int(deteccao.get("scroll_visual_min_scrolls", 2))
+        ):
+            avisar(
+                status_callback,
+                "Detector visual indicou fim cedo demais. Vou ignorar e tentar mais scrolls.",
+                "orange",
+            )
+            fim_scroll_detectado = False
 
     if cards_executados == 0:
         avisar(status_callback, "Nenhum card com +10/+5 encontrado. Seguindo sem clicar.", "orange")
@@ -2330,25 +2955,33 @@ def executar_fluxo_inicial(
     stop_event=None,
     status_callback=None,
     safety_callback=None,
+    edge_ja_aberto=False,
+    painel_ja_aberto=False,
 ):
     if coordenadas is None:
         coordenadas = carregar_coordenadas(config)
 
-    avisar(status_callback, "Abrindo o Microsoft Edge...")
-    if not abrir_edge(config, stop_event, status_callback):
-        return False
+    if edge_ja_aberto:
+        avisar(status_callback, "Edge ja esta aberto. Pulando nova abertura do navegador.")
+    else:
+        avisar(status_callback, "Abrindo o Microsoft Edge...")
+        if not abrir_edge(config, stop_event, status_callback):
+            return False
 
-    avisar(status_callback, "Clicando no icone da extensao...")
-    if not abrir_extensao_rewards(
-        config,
-        coordenadas,
-        stop_event,
-        status_callback,
-        safety_callback,
-    ):
-        return False
-    if not esperar_intervalo(config, "apos_icone_extensao", stop_event, status_callback):
-        return False
+    if painel_ja_aberto:
+        avisar(status_callback, "Painel Rewards ja esta aberto e validado. Pulando clique no icone da extensao.")
+    else:
+        avisar(status_callback, "Clicando no icone da extensao...")
+        if not abrir_extensao_rewards(
+            config,
+            coordenadas,
+            stop_event,
+            status_callback,
+            safety_callback,
+        ):
+            return False
+        if not esperar_intervalo(config, "apos_icone_extensao", stop_event, status_callback):
+            return False
 
     resultado_imagem = executar_cards_por_imagem(
         config,

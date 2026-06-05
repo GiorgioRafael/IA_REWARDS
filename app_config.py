@@ -1,0 +1,337 @@
+import copy
+from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parent
+
+CONFIG_FILE = BASE_DIR / "config.json"
+
+LOGS_DIR = BASE_DIR / "logs"
+
+SW_RESTORE = 9
+
+DEFAULT_CONFIG = {
+    "app_busca": "EDGE",
+    "automacao": {
+        "usar_versao_fixa": True,
+    },
+    "tempos": {
+        "apos_windows": 0.5,
+        "apos_digitar_app": 0.2,
+        "apos_enter": 4.0,
+        "movimento_mouse": 0.2,
+        "entre_acoes": 1.0,
+        "apos_icone_extensao": {"min": 2.0, "max": 5.0},
+        "apos_double_click_scroll": {"min": 1.0, "max": 3.0},
+        "apos_card_1": {"min": 1.0, "max": 5.0},
+        "apos_card_2": {"min": 2.0, "max": 5.0},
+        "apos_voltar_card_2": {"min": 2.0, "max": 5.0},
+        "apos_card_3": {"min": 2.0, "max": 5.0},
+        "apos_card_detectado": {"min": 2.0, "max": 5.0},
+        "apos_voltar_card_detectado": {"min": 2.0, "max": 5.0},
+    },
+    "coordenadas": {
+        "icone_extensao": {"x": -636, "y": 54},
+        "double_click_scroll": {"x": -406, "y": 578},
+        "card_1": {"x": None, "y": None},
+        "card_2": {"x": None, "y": None},
+        "card_3": {"x": None, "y": None},
+        "voltar": {"x": -1894, "y": 54},
+    },
+    "deteccao_imagem": {
+        "ativada": True,
+        "usar_fallback_coordenadas": True,
+        "template_plus_10": "assets/plus_10.png",
+        "template_plus_5": "assets/plus_5.png",
+        "usar_plus_10": True,
+        "usar_plus_5": True,
+        "usar_treinamento": True,
+        "treino_dir": "assets/treino_plus_10",
+        "treino_dir_plus_5": "assets/treino_plus_5",
+        "confianca": 0.85,
+        "score_forte": 0.95,
+        "usar_variacoes": False,
+        "busca_flexivel": False,
+        "confianca_flexivel": 0.78,
+        "escalas_flexiveis": [0.9, 0.95, 1.0, 1.05, 1.1],
+        "validar_sinal_mais": True,
+        "max_cards": 3,
+        "max_scrolls": 40,
+        "scroll_amount": -2,
+        "detectar_fim_scroll": True,
+        "detectar_painel_automatico": True,
+        "usar_painel_para_scroll": True,
+        "usar_painel_para_deteccao": True,
+        "usar_scrollbar_por_cor": True,
+        "scrollbar_color": "#767676",
+        "scrollbar_tolerance": 28,
+        "scrollbar_min_height": 35,
+        "scrollbar_min_delta": 2,
+        "scrollbar_end_margin": 12,
+        "scroll_end_threshold": 1.0,
+        "scroll_visual_min_scrolls": 2,
+        "painel_anchor_width": 500,
+        "painel_anchor_height": 1040,
+        "painel_anchor_x_offset": -360,
+        "painel_anchor_y_offset": -260,
+        "scroll_end_width": 700,
+        "scroll_end_height": 850,
+        "scroll_end_x_offset": -620,
+        "scroll_end_y_offset": -360,
+        "scroll_end_region": {"x": None, "y": None, "width": None, "height": None},
+        "capture_offset_x": 0,
+        "capture_offset_y": 0,
+        "click_offset_x": 0,
+        "click_offset_y": 0,
+        "regiao": {"x": None, "y": None, "width": None, "height": None},
+    },
+    "seguranca_mouse": {
+        "ativada": True,
+        "margem_pixels": 35,
+        "reabrir_extensao_ao_continuar": True,
+    },
+    "debug": {
+        "abrir_cmd": True,
+    },
+    "dashboard": {
+        "ativada": True,
+        "api_endpoint": "",
+        "api_secret": "",
+        "user_uid": "dH3TK9f8W9bi7nbtRwMe660wRfB2",
+        "source": "python_app",
+        "bearer_token": "",
+        "firebase": {
+            "apiKey": "AIzaSyCGzKW5A6uDEMNYyKRHzbXvwDathgDzagE",
+            "authDomain": "personalrewardsdashboard.firebaseapp.com",
+            "projectId": "personalrewardsdashboard",
+            "storageBucket": "personalrewardsdashboard.firebasestorage.app",
+            "messagingSenderId": "990756612461",
+            "appId": "1:990756612461:web:ed86a992035287ec1fd264",
+        },
+        "leitura_pontos": {
+            "tentativas": 3,
+            "click_offset_x": -245,
+            "click_offset_y": -38,
+            "double_click_x": None,
+            "double_click_y": None,
+            "restaurar_clipboard": True,
+            "min_points": None,
+            "max_auto_drop": None,
+            "max_raw_text_chars": 40,
+        },
+    },
+    "navegador": {
+        "forcar_segundo_monitor": False,
+        "buscar_titulo_janela": False,
+        "titulo_janela": "Microsoft Edge",
+    },
+    "rewards_estado": {
+        "permitir_reinicio_edge_erro": True,
+        "max_reinicios_edge": 1,
+        "delay_apos_reiniciar_edge": 4.0,
+        "url_rewards": "https://rewards.bing.com/",
+    },
+    "edge_tracker": {
+        "treino_dir": "assets/treino_edge_tracker_estados",
+        "estados_minutos": [0, 5, 10, 15, 20, 25, 30],
+        "total_minutos": 30,
+        "confianca": 0.82,
+        "capture_width": 130,
+        "capture_height": 42,
+    },
+    "alvos_visuais": {
+        "icone_extensao": {
+            "template": "assets/alvos/icone_extensao.png",
+            "treino_dir": "assets/treino_icone_extensao",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 70,
+            "capture_height": 50,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "voltar": {
+            "template": "assets/alvos/voltar.png",
+            "treino_dir": "assets/treino_voltar",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 70,
+            "capture_height": 50,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "ver_tudo": {
+            "template": "assets/alvos/ver_tudo.png",
+            "treino_dir": "assets/treino_ver_tudo",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 190,
+            "capture_height": 55,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "exibir_painel": {
+            "template": "assets/alvos/exibir_painel.png",
+            "treino_dir": "assets/treino_exibir_painel",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 160,
+            "capture_height": 42,
+            "click_offset_x": 0,
+            "click_offset_y": 70,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "tracker_edge_tempo": {
+            "template": "assets/alvos/tracker_edge_tempo.png",
+            "treino_dir": "assets/treino_tracker_edge_tempo",
+            "confianca": 0.78,
+            "score_forte": 0.92,
+            "capture_width": 280,
+            "capture_height": 70,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "brotato_gamertag": {
+            "template": "assets/alvos/brotato_gamertag.png",
+            "treino_dir": "assets/treino_brotato_gamertag",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 80,
+            "capture_height": 32,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "brotato_icone_barra": {
+            "template": "assets/alvos/brotato_icone_barra.png",
+            "treino_dir": "assets/treino_brotato_icone_barra",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 36,
+            "capture_height": 36,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+    },
+    "pesquisas": {
+        "desktop_coords": {"x": -1397, "y": 122},
+        "search_count": 30,
+        "executar_conjunto_diario": True,
+        "executar_pesquisas": True,
+        "usar_ctrl_l_desktop": True,
+        "delay_apos_conjunto_diario": {"min": 2.0, "max": 5.0},
+        "delay_entre_buscas": {"min": 5.0, "max": 8.0},
+        "palavras_por_busca": {"min": 1, "max": 3},
+    },
+    "edge_tempo": {
+        "executar": False,
+        "url_video": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+        "primeira_espera_minutos": 36,
+        "margem_extra_minutos": 1,
+        "max_tentativas": 3,
+        "delay_apos_abrir_video": 8.0,
+        "delay_apos_reabrir_edge": 2.0,
+    },
+    "brotato": {
+        "executar": False,
+        "app_busca": "Brotato",
+        "tempo_minutos": 17,
+        "delay_apos_enter": 10,
+        "menu_timeout_segundos": 120,
+        "fechar_timeout_segundos": 20,
+    },
+    "timer_automatico": {
+        "horas": 0,
+        "minutos": 0,
+        "segundos": 0,
+        "desligar_delay_segundos": 30,
+    },
+}
+
+VISUAL_TARGET_LABELS = {
+    "icone_extensao": "Icone da extensao",
+    "voltar": "Botao voltar",
+    "ver_tudo": "Botao Ver tudo",
+    "exibir_painel": "Texto Exibir painel",
+    "tracker_edge_tempo": "Navegar com Edge / tempo",
+    "brotato_gamertag": "Brotato Gamer Tag",
+    "brotato_icone_barra": "Brotato icone na barra",
+}
+
+COORD_LABELS = {
+    "icone_extensao": "Icone extensao",
+    "double_click_scroll": "Double click scroll",
+    "card_1": "Card 1",
+    "card_2": "Card 2",
+    "card_3": "Card 3",
+    "voltar": "Voltar",
+}
+
+TEMPO_INTERVALO_LABELS = {
+    "apos_icone_extensao": "Apos icone extensao",
+    "apos_double_click_scroll": "Apos double click scroll",
+    "apos_card_1": "Apos card 1",
+    "apos_card_2": "Apos card 2",
+    "apos_voltar_card_2": "Apos voltar card 2",
+    "apos_card_3": "Apos card 3",
+    "apos_card_detectado": "Apos card detectado",
+    "apos_voltar_card_detectado": "Apos voltar detectado",
+}
+
+PALAVRAS_FALLBACK = [
+    "python",
+    "weather",
+    "music",
+    "notebook",
+    "recipe",
+    "travel",
+    "history",
+    "science",
+    "movie",
+    "coffee",
+    "garden",
+    "finance",
+    "sports",
+    "language",
+    "technology",
+    "health",
+    "books",
+    "space",
+    "maps",
+    "calendar",
+]
+
+def mesclar_config(default, atual):
+    config = copy.deepcopy(default)
+
+    def mesclar(destino, origem):
+        for chave, valor in origem.items():
+            if (
+                chave in destino
+                and isinstance(destino[chave], dict)
+                and isinstance(valor, dict)
+            ):
+                mesclar(destino[chave], valor)
+            elif chave in destino:
+                destino[chave] = valor
+
+    mesclar(config, atual)
+    return config
+
+def migrar_config_antiga(config):
+    if "pesquisas" not in config:
+        config["pesquisas"] = {}
+
+    for chave in ("desktop_coords", "search_count"):
+        if chave in config:
+            config["pesquisas"][chave] = config[chave]
+
+    if "skip_browser_open" in config:
+        config["pesquisas"]["executar_conjunto_diario"] = not config["skip_browser_open"]
+
+    return config

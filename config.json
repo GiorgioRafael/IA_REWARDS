@@ -80,7 +80,8 @@
     "treino_dir_plus_5": "assets/treino_plus_5",
     "confianca": 0.85,
     "score_forte": 0.95,
-    "busca_flexivel": true,
+    "usar_variacoes": false,
+    "busca_flexivel": false,
     "confianca_flexivel": 0.78,
     "escalas_flexiveis": [
       0.9,
@@ -104,6 +105,11 @@
     "scrollbar_min_delta": 2,
     "scrollbar_end_margin": 12,
     "scroll_end_threshold": 1.0,
+    "scroll_visual_min_scrolls": 2,
+    "painel_anchor_width": 500,
+    "painel_anchor_height": 1040,
+    "painel_anchor_x_offset": -360,
+    "painel_anchor_y_offset": -260,
     "scroll_end_width": 700,
     "scroll_end_height": 850,
     "scroll_end_x_offset": -620,
@@ -133,9 +139,43 @@
   "debug": {
     "abrir_cmd": false
   },
+  "dashboard": {
+    "ativada": true,
+    "api_endpoint": "",
+    "api_secret": "",
+    "user_uid": "dH3TK9f8W9bi7nbtRwMe660wRfB2",
+    "source": "python_app",
+    "bearer_token": "",
+    "firebase": {
+      "apiKey": "AIzaSyCGzKW5A6uDEMNYyKRHzbXvwDathgDzagE",
+      "authDomain": "personalrewardsdashboard.firebaseapp.com",
+      "projectId": "personalrewardsdashboard",
+      "storageBucket": "personalrewardsdashboard.firebasestorage.app",
+      "messagingSenderId": "990756612461",
+      "appId": "1:990756612461:web:ed86a992035287ec1fd264"
+    },
+    "leitura_pontos": {
+      "tentativas": 3,
+      "click_offset_x": -245,
+      "click_offset_y": -38,
+      "double_click_x": -359,
+      "double_click_y": 204,
+      "restaurar_clipboard": true,
+      "min_points": null,
+      "max_auto_drop": null,
+      "max_raw_text_chars": 40
+    }
+  },
   "navegador": {
     "forcar_segundo_monitor": true,
+    "buscar_titulo_janela": false,
     "titulo_janela": "Microsoft Edge"
+  },
+  "rewards_estado": {
+    "permitir_reinicio_edge_erro": true,
+    "max_reinicios_edge": 1,
+    "delay_apos_reiniciar_edge": 4.0,
+    "url_rewards": "https://rewards.bing.com/"
   },
   "edge_tracker": {
     "treino_dir": "assets/treino_edge_tracker_estados",
@@ -274,7 +314,7 @@
     },
     "search_count": 20,
     "executar_conjunto_diario": true,
-    "executar_pesquisas": true,
+    "executar_pesquisas": false,
     "usar_ctrl_l_desktop": true,
     "delay_apos_conjunto_diario": {
       "min": 2.0,
@@ -290,7 +330,7 @@
     }
   },
   "edge_tempo": {
-    "executar": true,
+    "executar": false,
     "url_video": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
     "primeira_espera_minutos": 36.0,
     "margem_extra_minutos": 1.0,
@@ -299,7 +339,7 @@
     "delay_apos_reabrir_edge": 2.0
   },
   "brotato": {
-    "executar": true,
+    "executar": false,
     "app_busca": "Brotato",
     "tempo_minutos": 17.0,
     "delay_apos_enter": 25.0,

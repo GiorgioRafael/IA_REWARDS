@@ -5,6 +5,8 @@ import random
 import subprocess
 import threading
 import time
+import uuid
+import winsound
 from ctypes import wintypes
 
 
@@ -25,7 +27,6 @@ ativar_dpi_awareness()
 
 import tkinter as tk
 from datetime import datetime
-from pathlib import Path
 from tkinter import messagebox, ttk
 
 import pyautogui as pa
@@ -33,8 +34,6 @@ import requests
 from pynput import keyboard
 
 from automacao_edge import (
-    abrir_edge,
-    abrir_extensao_rewards,
     abrir_ver_tudo_e_detectar_tracker_edge,
     carregar_coordenadas,
     detectar_estado_tracker_edge,
@@ -42,25 +41,29 @@ from automacao_edge import (
     clicar_alvo_visual,
     limpar_cache_execucao,
     localizar_alvo_visual,
-    listar_templates_tracker_estado,
     listar_templates_alvo_visual,
-    listar_templates_plus_5,
-    listar_templates_plus_10,
 )
 from deteccao_imagem import (
-    capturar_template_em_coordenada,
     clicar_mouse,
     get_mouse_position,
-    get_mouse_position_debug,
-    localizar_templates,
-    mover_mouse,
 )
-
-
-BASE_DIR = Path(__file__).resolve().parent
-CONFIG_FILE = BASE_DIR / "config.json"
-LOGS_DIR = BASE_DIR / "logs"
-SW_RESTORE = 9
+from app_config import (
+    BASE_DIR,
+    CONFIG_FILE,
+    COORD_LABELS,
+    DEFAULT_CONFIG,
+    LOGS_DIR,
+    PALAVRAS_FALLBACK,
+    SW_RESTORE,
+    TEMPO_INTERVALO_LABELS,
+    VISUAL_TARGET_LABELS,
+    mesclar_config,
+    migrar_config_antiga,
+)
+from dashboard_mixin import DashboardMixin
+from edge_session_mixin import EdgeSessionMixin
+from execucao_logger import ExecucaoLogger
+from training_detection_mixin import TrainingDetectionMixin
 
 
 def focar_janela_por_titulo(parte_titulo):
@@ -102,346 +105,7 @@ def focar_janela_por_titulo(parte_titulo):
     except Exception:
         return None
 
-DEFAULT_CONFIG = {
-    "app_busca": "EDGE",
-    "automacao": {
-        "usar_versao_fixa": True,
-    },
-    "tempos": {
-        "apos_windows": 0.5,
-        "apos_digitar_app": 0.2,
-        "apos_enter": 4.0,
-        "movimento_mouse": 0.2,
-        "entre_acoes": 1.0,
-        "apos_icone_extensao": {"min": 2.0, "max": 5.0},
-        "apos_double_click_scroll": {"min": 1.0, "max": 3.0},
-        "apos_card_1": {"min": 1.0, "max": 5.0},
-        "apos_card_2": {"min": 2.0, "max": 5.0},
-        "apos_voltar_card_2": {"min": 2.0, "max": 5.0},
-        "apos_card_3": {"min": 2.0, "max": 5.0},
-        "apos_card_detectado": {"min": 2.0, "max": 5.0},
-        "apos_voltar_card_detectado": {"min": 2.0, "max": 5.0},
-    },
-    "coordenadas": {
-        "icone_extensao": {"x": -636, "y": 54},
-        "double_click_scroll": {"x": -406, "y": 578},
-        "card_1": {"x": None, "y": None},
-        "card_2": {"x": None, "y": None},
-        "card_3": {"x": None, "y": None},
-        "voltar": {"x": -1894, "y": 54},
-    },
-    "deteccao_imagem": {
-        "ativada": True,
-        "usar_fallback_coordenadas": True,
-        "template_plus_10": "assets/plus_10.png",
-        "template_plus_5": "assets/plus_5.png",
-        "usar_plus_10": True,
-        "usar_plus_5": True,
-        "usar_treinamento": True,
-        "treino_dir": "assets/treino_plus_10",
-        "treino_dir_plus_5": "assets/treino_plus_5",
-        "confianca": 0.85,
-        "score_forte": 0.95,
-        "busca_flexivel": True,
-        "confianca_flexivel": 0.78,
-        "escalas_flexiveis": [0.9, 0.95, 1.0, 1.05, 1.1],
-        "validar_sinal_mais": True,
-        "max_cards": 3,
-        "max_scrolls": 40,
-        "scroll_amount": -2,
-        "detectar_fim_scroll": True,
-        "detectar_painel_automatico": True,
-        "usar_painel_para_scroll": True,
-        "usar_painel_para_deteccao": True,
-        "usar_scrollbar_por_cor": True,
-        "scrollbar_color": "#767676",
-        "scrollbar_tolerance": 28,
-        "scrollbar_min_height": 35,
-        "scrollbar_min_delta": 2,
-        "scrollbar_end_margin": 12,
-        "scroll_end_threshold": 1.0,
-        "scroll_end_width": 700,
-        "scroll_end_height": 850,
-        "scroll_end_x_offset": -620,
-        "scroll_end_y_offset": -360,
-        "scroll_end_region": {"x": None, "y": None, "width": None, "height": None},
-        "capture_offset_x": 0,
-        "capture_offset_y": 0,
-        "click_offset_x": 0,
-        "click_offset_y": 0,
-        "regiao": {"x": None, "y": None, "width": None, "height": None},
-    },
-    "seguranca_mouse": {
-        "ativada": True,
-        "margem_pixels": 35,
-        "reabrir_extensao_ao_continuar": True,
-    },
-    "debug": {
-        "abrir_cmd": True,
-    },
-    "navegador": {
-        "forcar_segundo_monitor": False,
-        "titulo_janela": "Microsoft Edge",
-    },
-    "edge_tracker": {
-        "treino_dir": "assets/treino_edge_tracker_estados",
-        "estados_minutos": [0, 5, 10, 15, 20, 25, 30],
-        "total_minutos": 30,
-        "confianca": 0.82,
-        "capture_width": 130,
-        "capture_height": 42,
-    },
-    "alvos_visuais": {
-        "icone_extensao": {
-            "template": "assets/alvos/icone_extensao.png",
-            "treino_dir": "assets/treino_icone_extensao",
-            "confianca": 0.82,
-            "score_forte": 0.95,
-            "capture_width": 70,
-            "capture_height": 50,
-            "click_offset_x": 0,
-            "click_offset_y": 0,
-            "regiao": {"x": None, "y": None, "width": None, "height": None},
-        },
-        "voltar": {
-            "template": "assets/alvos/voltar.png",
-            "treino_dir": "assets/treino_voltar",
-            "confianca": 0.82,
-            "score_forte": 0.95,
-            "capture_width": 70,
-            "capture_height": 50,
-            "click_offset_x": 0,
-            "click_offset_y": 0,
-            "regiao": {"x": None, "y": None, "width": None, "height": None},
-        },
-        "ver_tudo": {
-            "template": "assets/alvos/ver_tudo.png",
-            "treino_dir": "assets/treino_ver_tudo",
-            "confianca": 0.82,
-            "score_forte": 0.95,
-            "capture_width": 190,
-            "capture_height": 55,
-            "click_offset_x": 0,
-            "click_offset_y": 0,
-            "regiao": {"x": None, "y": None, "width": None, "height": None},
-        },
-        "exibir_painel": {
-            "template": "assets/alvos/exibir_painel.png",
-            "treino_dir": "assets/treino_exibir_painel",
-            "confianca": 0.82,
-            "score_forte": 0.95,
-            "capture_width": 160,
-            "capture_height": 42,
-            "click_offset_x": 0,
-            "click_offset_y": 70,
-            "regiao": {"x": None, "y": None, "width": None, "height": None},
-        },
-        "tracker_edge_tempo": {
-            "template": "assets/alvos/tracker_edge_tempo.png",
-            "treino_dir": "assets/treino_tracker_edge_tempo",
-            "confianca": 0.78,
-            "score_forte": 0.92,
-            "capture_width": 280,
-            "capture_height": 70,
-            "click_offset_x": 0,
-            "click_offset_y": 0,
-            "regiao": {"x": None, "y": None, "width": None, "height": None},
-        },
-        "brotato_gamertag": {
-            "template": "assets/alvos/brotato_gamertag.png",
-            "treino_dir": "assets/treino_brotato_gamertag",
-            "confianca": 0.82,
-            "score_forte": 0.95,
-            "capture_width": 80,
-            "capture_height": 32,
-            "click_offset_x": 0,
-            "click_offset_y": 0,
-            "regiao": {"x": None, "y": None, "width": None, "height": None},
-        },
-        "brotato_icone_barra": {
-            "template": "assets/alvos/brotato_icone_barra.png",
-            "treino_dir": "assets/treino_brotato_icone_barra",
-            "confianca": 0.82,
-            "score_forte": 0.95,
-            "capture_width": 36,
-            "capture_height": 36,
-            "click_offset_x": 0,
-            "click_offset_y": 0,
-            "regiao": {"x": None, "y": None, "width": None, "height": None},
-        },
-    },
-    "pesquisas": {
-        "desktop_coords": {"x": -1397, "y": 122},
-        "search_count": 30,
-        "executar_conjunto_diario": True,
-        "executar_pesquisas": True,
-        "usar_ctrl_l_desktop": True,
-        "delay_apos_conjunto_diario": {"min": 2.0, "max": 5.0},
-        "delay_entre_buscas": {"min": 5.0, "max": 8.0},
-        "palavras_por_busca": {"min": 1, "max": 3},
-    },
-    "edge_tempo": {
-        "executar": False,
-        "url_video": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
-        "primeira_espera_minutos": 36,
-        "margem_extra_minutos": 1,
-        "max_tentativas": 3,
-        "delay_apos_abrir_video": 8.0,
-        "delay_apos_reabrir_edge": 2.0,
-    },
-    "brotato": {
-        "executar": False,
-        "app_busca": "Brotato",
-        "tempo_minutos": 17,
-        "delay_apos_enter": 10,
-        "menu_timeout_segundos": 120,
-        "fechar_timeout_segundos": 20,
-    },
-    "timer_automatico": {
-        "horas": 0,
-        "minutos": 0,
-        "segundos": 0,
-        "desligar_delay_segundos": 30,
-    },
-}
-
-VISUAL_TARGET_LABELS = {
-    "icone_extensao": "Icone da extensao",
-    "voltar": "Botao voltar",
-    "ver_tudo": "Botao Ver tudo",
-    "exibir_painel": "Texto Exibir painel",
-    "tracker_edge_tempo": "Navegar com Edge / tempo",
-    "brotato_gamertag": "Brotato Gamer Tag",
-    "brotato_icone_barra": "Brotato icone na barra",
-}
-
-COORD_LABELS = {
-    "icone_extensao": "Icone extensao",
-    "double_click_scroll": "Double click scroll",
-    "card_1": "Card 1",
-    "card_2": "Card 2",
-    "card_3": "Card 3",
-    "voltar": "Voltar",
-}
-
-TEMPO_INTERVALO_LABELS = {
-    "apos_icone_extensao": "Apos icone extensao",
-    "apos_double_click_scroll": "Apos double click scroll",
-    "apos_card_1": "Apos card 1",
-    "apos_card_2": "Apos card 2",
-    "apos_voltar_card_2": "Apos voltar card 2",
-    "apos_card_3": "Apos card 3",
-    "apos_card_detectado": "Apos card detectado",
-    "apos_voltar_card_detectado": "Apos voltar detectado",
-}
-
-PALAVRAS_FALLBACK = [
-    "python",
-    "weather",
-    "music",
-    "notebook",
-    "recipe",
-    "travel",
-    "history",
-    "science",
-    "movie",
-    "coffee",
-    "garden",
-    "finance",
-    "sports",
-    "language",
-    "technology",
-    "health",
-    "books",
-    "space",
-    "maps",
-    "calendar",
-]
-
-
-class ExecucaoLogger:
-    def __init__(self, base_dir):
-        self.base_dir = Path(base_dir)
-        self.log_path = None
-        self.cmd_path = None
-        self.lock = threading.Lock()
-
-    def iniciar(self, titulo, abrir_cmd=True):
-        LOGS_DIR.mkdir(parents=True, exist_ok=True)
-        agora = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_path = LOGS_DIR / f"execucao_{agora}.log"
-        self.cmd_path = LOGS_DIR / f"abrir_log_{agora}.cmd"
-
-        self.escrever("=" * 70)
-        self.escrever(f"{titulo} iniciado")
-        self.escrever(f"Arquivo de log: {self.log_path}")
-        self.escrever("=" * 70)
-        if abrir_cmd:
-            self.abrir_janela_cmd()
-
-    def abrir_janela_cmd(self):
-        if self.log_path is None or self.cmd_path is None:
-            return
-
-        conteudo = (
-            "@echo off\n"
-            "title AI Rewards - Log em tempo real\n"
-            "color 0A\n"
-            f'echo Monitorando: "{self.log_path}"\n'
-            "echo.\n"
-            "powershell -NoProfile -ExecutionPolicy Bypass "
-            f'-Command "Get-Content -LiteralPath \'{self.log_path}\' -Wait"\n'
-        )
-        self.cmd_path.write_text(conteudo, encoding="utf-8")
-        subprocess.Popen(
-            ["cmd.exe", "/k", str(self.cmd_path)],
-            cwd=str(self.base_dir),
-            creationflags=subprocess.CREATE_NEW_CONSOLE,
-        )
-
-    def escrever(self, mensagem):
-        if self.log_path is None:
-            return
-
-        linha = f"[{datetime.now().strftime('%H:%M:%S')}] {mensagem}"
-        with self.lock:
-            with self.log_path.open("a", encoding="utf-8") as arquivo:
-                arquivo.write(linha + "\n")
-
-
-def mesclar_config(default, atual):
-    config = copy.deepcopy(default)
-
-    def mesclar(destino, origem):
-        for chave, valor in origem.items():
-            if (
-                chave in destino
-                and isinstance(destino[chave], dict)
-                and isinstance(valor, dict)
-            ):
-                mesclar(destino[chave], valor)
-            elif chave in destino:
-                destino[chave] = valor
-
-    mesclar(config, atual)
-    return config
-
-
-def migrar_config_antiga(config):
-    if "pesquisas" not in config:
-        config["pesquisas"] = {}
-
-    for chave in ("desktop_coords", "search_count"):
-        if chave in config:
-            config["pesquisas"][chave] = config[chave]
-
-    if "skip_browser_open" in config:
-        config["pesquisas"]["executar_conjunto_diario"] = not config["skip_browser_open"]
-
-    return config
-
-
-class AutoRewardsApp:
+class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
     def __init__(self, root):
         self.root = root
         self.root.title("AI Rewards Automacao")
@@ -452,11 +116,22 @@ class AutoRewardsApp:
         self.pause_automation = threading.Event()
         self.stop_automation.pause_event = self.pause_automation
         self.automation_running = False
+        self.timer_automatico_aguardando = False
+        self.ignorar_esc_interno_ate = 0.0
         self.brotato_aberto = False
+        self.edge_session_hwnd = None
+        self.edge_session_started = False
+        self.edge_open_count = 0
+        self.edge_restart_count = 0
+        self.run_id = None
+        self.ultimo_pontos_lidos = None
+        self.ultima_leitura_pontos = None
         self.config = self.carregar_config()
         self.coord_vars = {}
         self.tempo_intervalo_vars = {}
         self.exec_logger = ExecucaoLogger(BASE_DIR)
+        self.resumo_execucao = {}
+        self.falhas_visuais = []
 
         self.setup_ui()
         self.start_keyboard_listener()
@@ -509,12 +184,14 @@ class AutoRewardsApp:
         edge_container, self.edge_tempo_tab = self.criar_aba_rolavel(self.config_notebook)
         brotato_container, self.brotato_tab = self.criar_aba_rolavel(self.config_notebook)
         deteccao_container, self.deteccao_tab = self.criar_aba_rolavel(self.config_notebook)
+        dashboard_container, self.dashboard_tab = self.criar_aba_rolavel(self.config_notebook)
         advanced_container, self.advanced_tab = self.criar_aba_rolavel(self.config_notebook)
 
         self.config_notebook.add(search_container, text="Pesquisar com o Bing")
         self.config_notebook.add(edge_container, text="Navegar com Edge")
         self.config_notebook.add(brotato_container, text="Jogar PC (Brotato)")
         self.config_notebook.add(deteccao_container, text="Detecção de imagem")
+        self.config_notebook.add(dashboard_container, text="Dashboard")
         self.config_notebook.add(advanced_container, text="Avançado")
 
         self.treino_notebook = ttk.Notebook(self.treino_tab)
@@ -545,7 +222,7 @@ class AutoRewardsApp:
 
         ttk.Label(
             status_frame,
-            text="Pressione ESC para pausar. Use Resumir ou Cancelar na aba Execução.",
+            text="Durante o timer, ESC é ignorado. Durante o fluxo, ESC cancela a execução.",
             foreground="gray",
         ).pack(pady=(8, 0))
 
@@ -656,6 +333,55 @@ class AutoRewardsApp:
         self.timer_segundos_var = tk.StringVar(
             value=str(timer_automatico.get("segundos", 0))
         )
+        dashboard = self.config.get("dashboard", {})
+        leitura_pontos = dashboard.get("leitura_pontos", {})
+        firebase_dashboard = dashboard.get("firebase", {})
+        self.dashboard_ativada_var = tk.BooleanVar(
+            value=dashboard.get("ativada", False)
+        )
+        self.dashboard_user_uid_var = tk.StringVar(
+            value=dashboard.get("user_uid", "")
+        )
+        self.dashboard_api_endpoint_var = tk.StringVar(
+            value=dashboard.get("api_endpoint", "")
+        )
+        self.dashboard_api_secret_var = tk.StringVar(
+            value=dashboard.get("api_secret", "")
+        )
+        self.dashboard_source_var = tk.StringVar(
+            value=dashboard.get("source", "python_app")
+        )
+        self.dashboard_project_id_var = tk.StringVar(
+            value=firebase_dashboard.get("projectId", "")
+        )
+        self.dashboard_api_key_var = tk.StringVar(
+            value=firebase_dashboard.get("apiKey", "")
+        )
+        double_click_x = leitura_pontos.get("double_click_x")
+        double_click_y = leitura_pontos.get("double_click_y")
+        self.dashboard_pontos_double_click_x_var = tk.StringVar(
+            value="" if double_click_x is None else str(double_click_x)
+        )
+        self.dashboard_pontos_double_click_y_var = tk.StringVar(
+            value="" if double_click_y is None else str(double_click_y)
+        )
+        self.dashboard_pontos_tentativas_var = tk.StringVar(
+            value=str(leitura_pontos.get("tentativas", 3))
+        )
+        min_points = leitura_pontos.get("min_points")
+        max_auto_drop = leitura_pontos.get("max_auto_drop")
+        self.dashboard_min_points_var = tk.StringVar(
+            value="" if min_points in (None, "", 0) else str(min_points)
+        )
+        self.dashboard_max_auto_drop_var = tk.StringVar(
+            value="" if max_auto_drop in (None, "", 0) else str(max_auto_drop)
+        )
+        self.dashboard_max_raw_text_chars_var = tk.StringVar(
+            value=str(leitura_pontos.get("max_raw_text_chars", 40))
+        )
+        self.dashboard_restaurar_clipboard_var = tk.BooleanVar(
+            value=leitura_pontos.get("restaurar_clipboard", True)
+        )
 
         fluxo_frame = ttk.LabelFrame(
             self.exec_tab, text="O que executar", padding="10"
@@ -695,6 +421,148 @@ class AutoRewardsApp:
             text="Mostrar CMD de debug em tempo real",
             variable=self.abrir_cmd_debug_var,
         ).pack(anchor="w", padx=5, pady=5)
+
+        dashboard_frame = ttk.LabelFrame(
+            self.dashboard_tab, text="Dashboard > Firestore/API", padding="10"
+        )
+        dashboard_frame.pack(fill="x", pady=(0, 10))
+        dashboard_frame.columnconfigure(1, weight=1)
+
+        ttk.Checkbutton(
+            dashboard_frame,
+            text="Enviar leituras de pontos para o dashboard",
+            variable=self.dashboard_ativada_var,
+        ).grid(row=0, column=0, columnspan=4, sticky="w", padx=5, pady=5)
+
+        ttk.Label(dashboard_frame, text="User UID:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(dashboard_frame, textvariable=self.dashboard_user_uid_var).grid(
+            row=1, column=1, columnspan=3, sticky="ew", padx=5, pady=5
+        )
+
+        ttk.Label(dashboard_frame, text="API endpoint opcional:").grid(
+            row=2, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(dashboard_frame, textvariable=self.dashboard_api_endpoint_var).grid(
+            row=2, column=1, columnspan=3, sticky="ew", padx=5, pady=5
+        )
+
+        ttk.Label(dashboard_frame, text="API secret opcional:").grid(
+            row=3, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(
+            dashboard_frame,
+            textvariable=self.dashboard_api_secret_var,
+            show="*",
+        ).grid(row=3, column=1, columnspan=3, sticky="ew", padx=5, pady=5)
+
+        ttk.Label(dashboard_frame, text="Source:").grid(
+            row=4, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(dashboard_frame, textvariable=self.dashboard_source_var, width=18).grid(
+            row=4, column=1, sticky="w", padx=5, pady=5
+        )
+
+        ttk.Label(dashboard_frame, text="Firebase projectId:").grid(
+            row=5, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(dashboard_frame, textvariable=self.dashboard_project_id_var).grid(
+            row=5, column=1, columnspan=3, sticky="ew", padx=5, pady=5
+        )
+
+        ttk.Label(dashboard_frame, text="Firebase apiKey:").grid(
+            row=6, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(dashboard_frame, textvariable=self.dashboard_api_key_var, show="*").grid(
+            row=6, column=1, columnspan=3, sticky="ew", padx=5, pady=5
+        )
+
+        leitura_frame = ttk.LabelFrame(
+            self.dashboard_tab, text="Dashboard > Leitura de pontos", padding="10"
+        )
+        leitura_frame.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(leitura_frame, text="Double click X:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(
+            leitura_frame,
+            textvariable=self.dashboard_pontos_double_click_x_var,
+            width=8,
+        ).grid(row=0, column=1, sticky="w", padx=5, pady=5)
+        ttk.Label(leitura_frame, text="Y:").grid(
+            row=0, column=2, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(
+            leitura_frame,
+            textvariable=self.dashboard_pontos_double_click_y_var,
+            width=8,
+        ).grid(row=0, column=3, sticky="w", padx=5, pady=5)
+
+        ttk.Label(leitura_frame, text="Tentativas:").grid(
+            row=1, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(
+            leitura_frame,
+            textvariable=self.dashboard_pontos_tentativas_var,
+            width=8,
+        ).grid(row=1, column=1, sticky="w", padx=5, pady=5)
+
+        ttk.Checkbutton(
+            leitura_frame,
+            text="Restaurar clipboard depois da leitura",
+            variable=self.dashboard_restaurar_clipboard_var,
+        ).grid(row=2, column=0, columnspan=4, sticky="w", padx=5, pady=5)
+
+        ttk.Label(leitura_frame, text="Saldo minimo opcional:").grid(
+            row=3, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(
+            leitura_frame,
+            textvariable=self.dashboard_min_points_var,
+            width=8,
+        ).grid(row=3, column=1, sticky="w", padx=5, pady=5)
+        ttk.Label(leitura_frame, text="Queda maxima opcional:").grid(
+            row=3, column=2, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(
+            leitura_frame,
+            textvariable=self.dashboard_max_auto_drop_var,
+            width=8,
+        ).grid(row=3, column=3, sticky="w", padx=5, pady=5)
+
+        ttk.Label(leitura_frame, text="Max caracteres copiados:").grid(
+            row=4, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(
+            leitura_frame,
+            textvariable=self.dashboard_max_raw_text_chars_var,
+            width=8,
+        ).grid(row=4, column=1, sticky="w", padx=5, pady=5)
+
+        ttk.Button(
+            leitura_frame,
+            text="Capturar posicao com F9",
+            command=self.start_captura_posicao_pontos_dashboard,
+        ).grid(row=5, column=0, columnspan=2, sticky="ew", padx=5, pady=(8, 5))
+
+        ttk.Button(
+            leitura_frame,
+            text="Testar double click/leitura dos pontos",
+            command=self.start_teste_offset_pontos_dashboard,
+        ).grid(row=5, column=2, columnspan=2, sticky="ew", padx=5, pady=(8, 5))
+
+        ttk.Label(
+            leitura_frame,
+            text=(
+                "A leitura so executa o double click se encontrar 'Exibir painel'. "
+                "Capture a posicao colocando o mouse sobre o numero grande e apertando F9. "
+                "Deixe saldo minimo e queda maxima vazios para aceitar resgates grandes."
+            ),
+            foreground="gray",
+            wraplength=620,
+        ).grid(row=6, column=0, columnspan=4, sticky="w", padx=5, pady=(6, 0))
 
         timer_frame = ttk.LabelFrame(
             self.exec_tab, text="Modo timer", padding="10"
@@ -956,6 +824,9 @@ class AutoRewardsApp:
         self.forcar_edge_segundo_monitor_var = tk.BooleanVar(
             value=navegador.get("forcar_segundo_monitor", False)
         )
+        self.buscar_titulo_janela_edge_var = tk.BooleanVar(
+            value=navegador.get("buscar_titulo_janela", False)
+        )
         deteccao = self.config["deteccao_imagem"]
         usando_versao_fixa = self.config.get("automacao", {}).get(
             "usar_versao_fixa", True
@@ -971,6 +842,9 @@ class AutoRewardsApp:
         self.usar_plus_5_var = tk.BooleanVar(value=deteccao.get("usar_plus_5", True))
         self.usar_treinamento_var = tk.BooleanVar(
             value=deteccao["usar_treinamento"]
+        )
+        self.usar_variacoes_deteccao_var = tk.BooleanVar(
+            value=deteccao.get("usar_variacoes", False)
         )
         self.treino_dir_var = tk.StringVar(value=deteccao["treino_dir"])
         self.treino_dir_plus_5_var = tk.StringVar(
@@ -1017,6 +891,12 @@ class AutoRewardsApp:
             text="Forcar Edge no segundo monitor",
             variable=self.forcar_edge_segundo_monitor_var,
         ).grid(row=5, column=0, columnspan=4, sticky="w", padx=5, pady=5)
+
+        ttk.Checkbutton(
+            abertura_frame,
+            text="Buscar janela pelo titulo antes dos atalhos",
+            variable=self.buscar_titulo_janela_edge_var,
+        ).grid(row=6, column=0, columnspan=4, sticky="w", padx=5, pady=5)
 
         modo_frame = ttk.LabelFrame(
             self.deteccao_tab, text="Deteccao de imagem > Modo", padding="10"
@@ -1129,6 +1009,12 @@ class AutoRewardsApp:
             text="Usar base de treino",
             variable=self.usar_treinamento_var,
         ).grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=3)
+
+        ttk.Checkbutton(
+            deteccao_frame,
+            text="Usar variacoes para melhorar a deteccao",
+            variable=self.usar_variacoes_deteccao_var,
+        ).grid(row=1, column=2, columnspan=2, sticky="w", padx=5, pady=3)
 
         ttk.Label(deteccao_frame, text="Confianca:").grid(
             row=2, column=0, sticky="w", padx=5, pady=3
@@ -1293,1111 +1179,49 @@ class AutoRewardsApp:
         finally:
             self.root.deiconify()
 
-    def caminho_template_plus_10(self):
-        caminho = Path(self.template_plus_10_var.get().strip() or "assets/plus_10.png")
-        if caminho.is_absolute():
-            return caminho
-
-        return BASE_DIR / caminho
-
-    def caminho_template_plus_5(self):
-        caminho = Path(self.template_plus_5_var.get().strip() or "assets/plus_5.png")
-        if caminho.is_absolute():
-            return caminho
-
-        return BASE_DIR / caminho
-
-    def caminho_treino_plus_10(self):
-        caminho = Path(self.treino_dir_var.get().strip() or "assets/treino_plus_10")
-        if caminho.is_absolute():
-            return caminho
-
-        return BASE_DIR / caminho
-
-    def caminho_treino_plus_5(self):
-        caminho = Path(self.treino_dir_plus_5_var.get().strip() or "assets/treino_plus_5")
-        if caminho.is_absolute():
-            return caminho
-
-        return BASE_DIR / caminho
-
-    def caminho_treino_alvo_visual(self, nome):
-        alvo = self.config.get("alvos_visuais", {}).get(nome, {})
-        caminho = Path(alvo.get("treino_dir", f"assets/treino_{nome}"))
-        if caminho.is_absolute():
-            return caminho
-
-        return BASE_DIR / caminho
-
-    def caminho_treino_tracker_estado(self, minutos):
-        tracker = self.config.get("edge_tracker", {})
-        caminho = Path(tracker.get("treino_dir", "assets/treino_edge_tracker_estados"))
-        caminho = caminho / str(int(minutos))
-        if caminho.is_absolute():
-            return caminho
-
-        return BASE_DIR / caminho
-
-    def nome_alvo_visual(self, nome):
-        return VISUAL_TARGET_LABELS.get(nome, nome)
-
-    def mover_mouse_para_resultado(self, resultado):
-        try:
-            mover_mouse(resultado["x"], resultado["y"])
-            return None
-        except Exception as exc:
-            return exc
-
-    def capturar_template_plus_10(self):
-        if not self.save_config():
-            return
-
-        messagebox.showinfo(
-            "Capturar template +10",
-            "A janela vai sumir.\n\n"
-            "Coloque o mouse no centro do selo +10 e pressione F9.\n"
-            "Pressione ESC para cancelar.",
-        )
-        self.root.withdraw()
-        self.update_status("Aguardando F9 para capturar o template +10...")
-        thread = threading.Thread(target=self._capturar_template_plus_10_worker, daemon=True)
-        thread.start()
-
-    def _capturar_template_plus_10_worker(self):
-        resultado = {"cancelado": False, "erro": None, "destino": None, "x": None, "y": None}
-        concluido = threading.Event()
-
-        def on_press(key):
-            if key == keyboard.Key.f9:
-                try:
-                    debug_mouse = get_mouse_position_debug()
-                    mouse_x, mouse_y = get_mouse_position()
-                    deteccao = self.config["deteccao_imagem"]
-                    captura_x = mouse_x + int(deteccao["capture_offset_x"])
-                    captura_y = mouse_y + int(deteccao["capture_offset_y"])
-                    destino = capturar_template_em_coordenada(
-                        self.caminho_template_plus_10(),
-                        captura_x,
-                        captura_y,
-                    )
-                    resultado.update(
-                        {
-                            "destino": destino,
-                            "x": mouse_x,
-                            "y": mouse_y,
-                            "captura_x": captura_x,
-                            "captura_y": captura_y,
-                            "debug_mouse": debug_mouse,
-                        }
-                    )
-                except Exception as exc:
-                    resultado["erro"] = exc
-
-                concluido.set()
-                return False
-
-            if key == keyboard.Key.esc:
-                resultado["cancelado"] = True
-                concluido.set()
-                return False
-
-            return True
-
-        listener = keyboard.Listener(on_press=on_press)
-        listener.start()
-        concluido.wait()
-        listener.stop()
-
-        self.root.after(0, lambda: self._finalizar_captura_template_plus_10(resultado))
-
-    def _finalizar_captura_template_plus_10(self, resultado):
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        if resultado["cancelado"]:
-            self.update_status("Captura do template cancelada.", "orange")
-            return
-
-        if resultado["erro"] is not None:
-            self.update_status("Erro ao capturar template +10.", "red")
-            messagebox.showerror(
-                "Erro",
-                f"Nao foi possivel capturar o template: {resultado['erro']}",
-                parent=self.root,
-            )
-            return
-
-        destino = resultado["destino"]
-        debug_mouse = resultado.get("debug_mouse") or {}
-        logico = debug_mouse.get("logico")
-        fisico = debug_mouse.get("fisico")
-        self.update_status(f"Template +10 salvo em {destino.name}.", "green")
-        messagebox.showinfo(
-            "Template capturado",
-            f"Template +10 salvo em:\n{destino}\n\n"
-            f"Mouse: x={resultado['x']}, y={resultado['y']}\n"
-            f"Captura corrigida: x={resultado['captura_x']}, y={resultado['captura_y']}\n"
-            f"Mouse logico: {logico}\n"
-            f"Mouse fisico: {fisico}",
-            parent=self.root,
-        )
-
-    def iniciar_modo_treino_plus_10(self):
-        if not self.save_config():
-            return
-
-        messagebox.showinfo(
-            "Modo treino +10",
-            "A janela vai sumir.\n\n"
-            "Coloque o mouse no centro de cada selo +10 e pressione F9.\n"
-            "Cada F9 salva uma nova amostra.\n\n"
-            "Pressione ESC para finalizar o treino.",
-            parent=self.root,
-        )
-        self.root.withdraw()
-        self.update_status("Modo treino ativo: F9 salva amostra, ESC finaliza.")
-        thread = threading.Thread(target=self._modo_treino_plus_10_worker, daemon=True)
-        thread.start()
-
-    def _modo_treino_plus_10_worker(self):
-        resultado = {"cancelado": False, "erro": None, "arquivos": []}
-        concluido = threading.Event()
-
-        def on_press(key):
-            if key == keyboard.Key.f9:
-                try:
-                    mouse_x, mouse_y = get_mouse_position()
-                    deteccao = self.config["deteccao_imagem"]
-                    captura_x = mouse_x + int(deteccao["capture_offset_x"])
-                    captura_y = mouse_y + int(deteccao["capture_offset_y"])
-                    treino_dir = self.caminho_treino_plus_10()
-                    treino_dir.mkdir(parents=True, exist_ok=True)
-                    nome = datetime.now().strftime("plus_10_%Y%m%d_%H%M%S_%f.png")
-                    destino = treino_dir / nome
-                    capturar_template_em_coordenada(destino, captura_x, captura_y)
-                    resultado["arquivos"].append(
-                        {
-                            "destino": destino,
-                            "mouse_x": mouse_x,
-                            "mouse_y": mouse_y,
-                            "captura_x": captura_x,
-                            "captura_y": captura_y,
-                        }
-                    )
-                except Exception as exc:
-                    resultado["erro"] = exc
-                    concluido.set()
-                    return False
-
-                return True
-
-            if key == keyboard.Key.esc:
-                resultado["cancelado"] = True
-                concluido.set()
-                return False
-
-            return True
-
-        listener = keyboard.Listener(on_press=on_press)
-        listener.start()
-        concluido.wait()
-        listener.stop()
-
-        self.root.after(0, lambda: self._finalizar_modo_treino_plus_10(resultado))
-
-    def _finalizar_modo_treino_plus_10(self, resultado):
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        if resultado["erro"] is not None:
-            self.update_status("Erro no modo treino +10.", "red")
-            messagebox.showerror(
-                "Erro",
-                f"Nao foi possivel salvar a amostra: {resultado['erro']}",
-                parent=self.root,
-            )
-            return
-
-        total = len(resultado["arquivos"])
-        if total == 0:
-            self.update_status("Modo treino encerrado sem novas amostras.", "orange")
-            return
-
-        ultimo = resultado["arquivos"][-1]
-        self.update_status(f"Modo treino finalizado: {total} amostra(s) salvas.", "green")
-        messagebox.showinfo(
-            "Modo treino finalizado",
-            f"{total} amostra(s) salvas em:\n{self.caminho_treino_plus_10()}\n\n"
-            f"Ultima captura corrigida: x={ultimo['captura_x']}, y={ultimo['captura_y']}",
-            parent=self.root,
-        )
-
-    def capturar_template_plus_5(self):
-        if not self.save_config():
-            return
-
-        messagebox.showinfo(
-            "Capturar template +5",
-            "A janela vai sumir.\n\n"
-            "Coloque o mouse no centro do selo +5 e pressione F9.\n"
-            "Pressione ESC para cancelar.",
-        )
-        self.root.withdraw()
-        self.update_status("Aguardando F9 para capturar o template +5...")
-        thread = threading.Thread(target=self._capturar_template_plus_5_worker, daemon=True)
-        thread.start()
-
-    def _capturar_template_plus_5_worker(self):
-        resultado = {"cancelado": False, "erro": None, "destino": None, "x": None, "y": None}
-        concluido = threading.Event()
-
-        def on_press(key):
-            if key == keyboard.Key.f9:
-                try:
-                    debug_mouse = get_mouse_position_debug()
-                    mouse_x, mouse_y = get_mouse_position()
-                    deteccao = self.config["deteccao_imagem"]
-                    captura_x = mouse_x + int(deteccao["capture_offset_x"])
-                    captura_y = mouse_y + int(deteccao["capture_offset_y"])
-                    destino = capturar_template_em_coordenada(
-                        self.caminho_template_plus_5(),
-                        captura_x,
-                        captura_y,
-                    )
-                    resultado.update(
-                        {
-                            "destino": destino,
-                            "x": mouse_x,
-                            "y": mouse_y,
-                            "captura_x": captura_x,
-                            "captura_y": captura_y,
-                            "debug_mouse": debug_mouse,
-                        }
-                    )
-                except Exception as exc:
-                    resultado["erro"] = exc
-
-                concluido.set()
-                return False
-
-            if key == keyboard.Key.esc:
-                resultado["cancelado"] = True
-                concluido.set()
-                return False
-
-            return True
-
-        listener = keyboard.Listener(on_press=on_press)
-        listener.start()
-        concluido.wait()
-        listener.stop()
-
-        self.root.after(0, lambda: self._finalizar_captura_template_plus_5(resultado))
-
-    def _finalizar_captura_template_plus_5(self, resultado):
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        if resultado["cancelado"]:
-            self.update_status("Captura do template +5 cancelada.", "orange")
-            return
-
-        if resultado["erro"] is not None:
-            self.update_status("Erro ao capturar template +5.", "red")
-            messagebox.showerror(
-                "Erro",
-                f"Nao foi possivel capturar o template +5: {resultado['erro']}",
-                parent=self.root,
-            )
-            return
-
-        destino = resultado["destino"]
-        debug_mouse = resultado.get("debug_mouse") or {}
-        self.update_status(f"Template +5 salvo em {destino.name}.", "green")
-        messagebox.showinfo(
-            "Template +5 capturado",
-            f"Template +5 salvo em:\n{destino}\n\n"
-            f"Mouse: x={resultado['x']}, y={resultado['y']}\n"
-            f"Captura corrigida: x={resultado['captura_x']}, y={resultado['captura_y']}\n"
-            f"Mouse logico: {debug_mouse.get('logico')}\n"
-            f"Mouse fisico: {debug_mouse.get('fisico')}",
-            parent=self.root,
-        )
-
-    def iniciar_modo_treino_plus_5(self):
-        if not self.save_config():
-            return
-
-        messagebox.showinfo(
-            "Modo treino +5",
-            "A janela vai sumir.\n\n"
-            "Coloque o mouse no centro de cada selo +5 e pressione F9.\n"
-            "Cada F9 salva uma nova amostra.\n\n"
-            "Pressione ESC para finalizar o treino.",
-            parent=self.root,
-        )
-        self.root.withdraw()
-        self.update_status("Modo treino +5 ativo: F9 salva amostra, ESC finaliza.")
-        thread = threading.Thread(target=self._modo_treino_plus_5_worker, daemon=True)
-        thread.start()
-
-    def _modo_treino_plus_5_worker(self):
-        resultado = {"cancelado": False, "erro": None, "arquivos": []}
-        concluido = threading.Event()
-
-        def on_press(key):
-            if key == keyboard.Key.f9:
-                try:
-                    mouse_x, mouse_y = get_mouse_position()
-                    deteccao = self.config["deteccao_imagem"]
-                    captura_x = mouse_x + int(deteccao["capture_offset_x"])
-                    captura_y = mouse_y + int(deteccao["capture_offset_y"])
-                    treino_dir = self.caminho_treino_plus_5()
-                    treino_dir.mkdir(parents=True, exist_ok=True)
-                    nome = datetime.now().strftime("plus_5_%Y%m%d_%H%M%S_%f.png")
-                    destino = treino_dir / nome
-                    capturar_template_em_coordenada(destino, captura_x, captura_y)
-                    resultado["arquivos"].append(
-                        {
-                            "destino": destino,
-                            "mouse_x": mouse_x,
-                            "mouse_y": mouse_y,
-                            "captura_x": captura_x,
-                            "captura_y": captura_y,
-                        }
-                    )
-                except Exception as exc:
-                    resultado["erro"] = exc
-                    concluido.set()
-                    return False
-
-                return True
-
-            if key == keyboard.Key.esc:
-                resultado["cancelado"] = True
-                concluido.set()
-                return False
-
-            return True
-
-        listener = keyboard.Listener(on_press=on_press)
-        listener.start()
-        concluido.wait()
-        listener.stop()
-
-        self.root.after(0, lambda: self._finalizar_modo_treino_plus_5(resultado))
-
-    def _finalizar_modo_treino_plus_5(self, resultado):
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        if resultado["erro"] is not None:
-            self.update_status("Erro no modo treino +5.", "red")
-            messagebox.showerror(
-                "Erro",
-                f"Nao foi possivel salvar a amostra +5: {resultado['erro']}",
-                parent=self.root,
-            )
-            return
-
-        total = len(resultado["arquivos"])
-        if total == 0:
-            self.update_status("Modo treino +5 encerrado sem novas amostras.", "orange")
-            return
-
-        ultimo = resultado["arquivos"][-1]
-        self.update_status(f"Modo treino +5 finalizado: {total} amostra(s) salvas.", "green")
-        messagebox.showinfo(
-            "Modo treino +5 finalizado",
-            f"{total} amostra(s) salvas em:\n{self.caminho_treino_plus_5()}\n\n"
-            f"Ultima captura corrigida: x={ultimo['captura_x']}, y={ultimo['captura_y']}",
-            parent=self.root,
-        )
-
-    def iniciar_modo_treino_alvo_visual(self, nome):
-        if not self.save_config():
-            return
-
-        label = self.nome_alvo_visual(nome)
-        messagebox.showinfo(
-            f"Treino - {label}",
-            "A janela vai sumir.\n\n"
-            f"Coloque o mouse no centro de '{label}' e pressione F9.\n"
-            "Cada F9 salva uma nova amostra.\n\n"
-            "Dica: no tracker, mire no texto estavel 'Navegar com Edge', nao no numero.\n\n"
-            "Pressione ESC para finalizar o treino.",
-            parent=self.root,
-        )
-        self.root.withdraw()
-        self.update_status(f"Treino de {label} ativo: F9 salva amostra, ESC finaliza.")
-        thread = threading.Thread(
-            target=lambda: self._modo_treino_alvo_visual_worker(nome),
-            daemon=True,
-        )
-        thread.start()
-
-    def _modo_treino_alvo_visual_worker(self, nome):
-        resultado = {"erro": None, "arquivos": [], "nome": nome}
-        concluido = threading.Event()
-
-        def on_press(key):
-            if key == keyboard.Key.f9:
-                try:
-                    mouse_x, mouse_y = get_mouse_position()
-                    deteccao = self.config["deteccao_imagem"]
-                    captura_x = mouse_x + int(deteccao["capture_offset_x"])
-                    captura_y = mouse_y + int(deteccao["capture_offset_y"])
-                    alvo_config = self.config.get("alvos_visuais", {}).get(nome, {})
-                    largura = int(alvo_config.get("capture_width", 70))
-                    altura = int(alvo_config.get("capture_height", 50))
-                    treino_dir = self.caminho_treino_alvo_visual(nome)
-                    treino_dir.mkdir(parents=True, exist_ok=True)
-                    arquivo_nome = datetime.now().strftime(f"{nome}_%Y%m%d_%H%M%S_%f.png")
-                    destino = treino_dir / arquivo_nome
-                    capturar_template_em_coordenada(
-                        destino,
-                        captura_x,
-                        captura_y,
-                        largura=largura,
-                        altura=altura,
-                    )
-                    resultado["arquivos"].append(
-                        {
-                            "destino": destino,
-                            "mouse_x": mouse_x,
-                            "mouse_y": mouse_y,
-                            "captura_x": captura_x,
-                            "captura_y": captura_y,
-                        }
-                    )
-                except Exception as exc:
-                    resultado["erro"] = exc
-                    concluido.set()
-                    return False
-
-                return True
-
-            if key == keyboard.Key.esc:
-                concluido.set()
-                return False
-
-            return True
-
-        listener = keyboard.Listener(on_press=on_press)
-        listener.start()
-        concluido.wait()
-        listener.stop()
-
-        self.root.after(0, lambda: self._finalizar_modo_treino_alvo_visual(resultado))
-
-    def _finalizar_modo_treino_alvo_visual(self, resultado):
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        nome = resultado["nome"]
-        label = self.nome_alvo_visual(nome)
-        if resultado["erro"] is not None:
-            self.update_status(f"Erro no treino de {label}.", "red")
-            messagebox.showerror(
-                "Erro",
-                f"Nao foi possivel salvar a amostra de {label}: {resultado['erro']}",
-                parent=self.root,
-            )
-            return
-
-        total = len(resultado["arquivos"])
-        if total == 0:
-            self.update_status(f"Treino de {label} encerrado sem novas amostras.", "orange")
-            return
-
-        ultimo = resultado["arquivos"][-1]
-        self.update_status(f"Treino de {label} finalizado: {total} amostra(s) salvas.", "green")
-        messagebox.showinfo(
-            f"Treino - {label}",
-            f"{total} amostra(s) salvas em:\n{self.caminho_treino_alvo_visual(nome)}\n\n"
-            f"Ultima captura corrigida: x={ultimo['captura_x']}, y={ultimo['captura_y']}",
-            parent=self.root,
-        )
-
-    def testar_deteccao_alvo_visual(self, nome):
-        if not self.save_config():
-            return
-
-        label = self.nome_alvo_visual(nome)
-        self.update_status(f"Testando deteccao de {label}...")
-        self.root.withdraw()
-        thread = threading.Thread(
-            target=lambda: self._testar_deteccao_alvo_visual_worker(nome),
-            daemon=True,
-        )
-        thread.start()
-
-    def _testar_deteccao_alvo_visual_worker(self, nome):
-        time.sleep(0.7)
-        resultado = {"nome": nome, "erro": None, "detectados": [], "total_templates": 0}
-
-        try:
-            templates = listar_templates_alvo_visual(self.config, nome)
-            resultado["total_templates"] = len(templates)
-            if not templates:
-                raise FileNotFoundError(f"Nenhum template treinado para {nome}.")
-
-            alvo = localizar_alvo_visual(
-                self.config,
-                nome,
-                status_callback=self.status_com_log,
-                stop_event=self.stop_automation,
-            )
-            resultado["detectados"] = [] if alvo is None else [alvo]
-        except FileNotFoundError:
-            resultado["erro"] = (
-                "Template nao encontrado",
-                "Use Iniciar treino para salvar pelo menos uma amostra desse alvo.",
-            )
-        except Exception as exc:
-            resultado["erro"] = ("Erro", f"Nao foi possivel testar a deteccao: {exc}")
-
-        self.root.after(
-            0,
-            lambda: self._finalizar_teste_deteccao_alvo_visual(resultado),
-        )
-
-    def _finalizar_teste_deteccao_alvo_visual(self, resultado):
-        detectados = resultado["detectados"]
-        mover_erro = None
-        if resultado["erro"] is None and detectados:
-            mover_erro = self.mover_mouse_para_resultado(detectados[0])
-
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        nome = resultado["nome"]
-        label = self.nome_alvo_visual(nome)
-        if resultado["erro"] is not None:
-            titulo, mensagem = resultado["erro"]
-            self.update_status(mensagem, "red")
-            messagebox.showerror(titulo, mensagem, parent=self.root)
-            return
-
-        if detectados:
-            melhor = detectados[0]
-            linha_mouse = "O mouse foi movido para essa deteccao."
-            if mover_erro is not None:
-                linha_mouse = f"Falha ao mover o mouse: {mover_erro}"
-            mensagem = (
-                f"{label} encontrado: {len(detectados)} resultado(s).\n"
-                f"Templates usados: {resultado['total_templates']}\n"
-                f"Melhor score: {melhor['score']:.2f}\n"
-                f"Coordenada: x={melhor['x']}, y={melhor['y']}\n\n"
-                f"{linha_mouse}"
-            )
-            self.update_status(
-                f"{label} encontrado: mouse movido para a deteccao.",
-                "green",
-            )
-            messagebox.showinfo(f"Deteccao - {label}", mensagem, parent=self.root)
-            return
-
-        mensagem = (
-            f"Nenhum resultado encontrado para {label}.\n\n"
-            f"Templates usados: {resultado['total_templates']}\n\n"
-            "Tente iniciar o treino novamente com o mouse bem no centro do alvo."
-        )
-        self.update_status(f"Nenhum resultado encontrado para {label}.", "orange")
-        messagebox.showwarning(f"Deteccao - {label}", mensagem, parent=self.root)
-
-    def iniciar_modo_treino_tracker_estado(self, minutos):
-        if not self.save_config():
-            return
-
-        messagebox.showinfo(
-            f"Treinar tracker {minutos}/30",
-            "A janela vai sumir.\n\n"
-            f"Coloque o mouse no centro do texto '{minutos}/30 min' e pressione F9.\n"
-            "Cada F9 salva uma nova amostra desse estado.\n\n"
-            "Pressione ESC para finalizar o treino.",
-            parent=self.root,
-        )
-        self.root.withdraw()
-        self.update_status(f"Treino tracker {minutos}/30 ativo: F9 salva amostra, ESC finaliza.")
-        thread = threading.Thread(
-            target=lambda: self._modo_treino_tracker_estado_worker(minutos),
-            daemon=True,
-        )
-        thread.start()
-
-    def _modo_treino_tracker_estado_worker(self, minutos):
-        resultado = {"erro": None, "arquivos": [], "minutos": int(minutos)}
-        concluido = threading.Event()
-
-        def on_press(key):
-            if key == keyboard.Key.f9:
-                try:
-                    mouse_x, mouse_y = get_mouse_position()
-                    deteccao = self.config["deteccao_imagem"]
-                    tracker = self.config.get("edge_tracker", {})
-                    captura_x = mouse_x + int(deteccao["capture_offset_x"])
-                    captura_y = mouse_y + int(deteccao["capture_offset_y"])
-                    largura = int(tracker.get("capture_width", 130))
-                    altura = int(tracker.get("capture_height", 42))
-                    treino_dir = self.caminho_treino_tracker_estado(minutos)
-                    treino_dir.mkdir(parents=True, exist_ok=True)
-                    nome = datetime.now().strftime(f"edge_{int(minutos)}_%Y%m%d_%H%M%S_%f.png")
-                    destino = treino_dir / nome
-                    capturar_template_em_coordenada(
-                        destino,
-                        captura_x,
-                        captura_y,
-                        largura=largura,
-                        altura=altura,
-                    )
-                    resultado["arquivos"].append(
-                        {
-                            "destino": destino,
-                            "mouse_x": mouse_x,
-                            "mouse_y": mouse_y,
-                            "captura_x": captura_x,
-                            "captura_y": captura_y,
-                        }
-                    )
-                except Exception as exc:
-                    resultado["erro"] = exc
-                    concluido.set()
-                    return False
-
-                return True
-
-            if key == keyboard.Key.esc:
-                concluido.set()
-                return False
-
-            return True
-
-        listener = keyboard.Listener(on_press=on_press)
-        listener.start()
-        concluido.wait()
-        listener.stop()
-
-        self.root.after(0, lambda: self._finalizar_modo_treino_tracker_estado(resultado))
-
-    def _finalizar_modo_treino_tracker_estado(self, resultado):
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        minutos = resultado["minutos"]
-        if resultado["erro"] is not None:
-            self.update_status(f"Erro no treino tracker {minutos}/30.", "red")
-            messagebox.showerror(
-                "Erro",
-                f"Nao foi possivel salvar a amostra {minutos}/30: {resultado['erro']}",
-                parent=self.root,
-            )
-            return
-
-        total = len(resultado["arquivos"])
-        if total == 0:
-            self.update_status(f"Treino tracker {minutos}/30 encerrado sem novas amostras.", "orange")
-            return
-
-        ultimo = resultado["arquivos"][-1]
-        self.update_status(f"Treino tracker {minutos}/30 finalizado: {total} amostra(s).", "green")
-        messagebox.showinfo(
-            f"Treino tracker {minutos}/30",
-            f"{total} amostra(s) salvas em:\n{self.caminho_treino_tracker_estado(minutos)}\n\n"
-            f"Ultima captura corrigida: x={ultimo['captura_x']}, y={ultimo['captura_y']}",
-            parent=self.root,
-        )
-
-    def testar_progresso_edge_tracker(self):
-        if not self.save_config():
-            return
-
-        self.root.withdraw()
-        self.update_status("Testando progresso do tracker Edge...")
-        thread = threading.Thread(target=self._testar_progresso_edge_tracker_worker, daemon=True)
-        thread.start()
-
-    def testar_ver_tudo_e_progresso_edge(self):
-        if not self.save_config():
-            return
-
-        self.root.withdraw()
-        self.update_status("Clicando Ver tudo e testando progresso Edge...")
-        thread = threading.Thread(
-            target=self._testar_ver_tudo_e_progresso_edge_worker,
-            daemon=True,
-        )
-        thread.start()
-
-    def _testar_progresso_edge_tracker_worker(self):
-        time.sleep(0.7)
-        resultado = {"erro": None, "tracker": None}
-        try:
-            resultado["tracker"] = detectar_estado_tracker_edge(
-                self.config,
-                status_callback=self.status_com_log,
-            )
-        except Exception as exc:
-            resultado["erro"] = exc
-
-        self.root.after(0, lambda: self._finalizar_teste_progresso_edge_tracker(resultado))
-
-    def _testar_ver_tudo_e_progresso_edge_worker(self):
-        time.sleep(0.7)
-        resultado = {"erro": None, "tracker": None}
-        try:
-            resultado["tracker"] = abrir_ver_tudo_e_detectar_tracker_edge(
-                self.config,
-                stop_event=self.stop_automation,
-                status_callback=self.status_com_log,
-                safety_callback=self.confirmar_intervencao_mouse,
-            )
-        except Exception as exc:
-            resultado["erro"] = exc
-
-        self.root.after(0, lambda: self._finalizar_teste_progresso_edge_tracker(resultado))
-
-    def _finalizar_teste_progresso_edge_tracker(self, resultado):
-        tracker = resultado.get("tracker")
-        mover_erro = None
-        if resultado["erro"] is None and tracker is not None:
-            mover_erro = self.mover_mouse_para_resultado(tracker)
-
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        if resultado["erro"] is not None:
-            self.update_status("Erro ao testar tracker Edge.", "red")
-            messagebox.showerror(
-                "Erro",
-                f"Nao foi possivel testar o tracker Edge: {resultado['erro']}",
-                parent=self.root,
-            )
-            return
-
-        if tracker is None:
-            self.update_status("Nao consegui identificar o progresso do Edge.", "orange")
-            messagebox.showwarning(
-                "Tracker Edge",
-                "Nao consegui identificar o estado do tracker.\n\n"
-                "Treine os estados 0/30, 5/30 ... 30/30 ou abra o menu Rewards antes de testar.",
-                parent=self.root,
-            )
-            return
-
-        status = "Completo" if tracker["completo"] else "Incompleto"
-        linha_mouse = "O mouse foi movido para a deteccao."
-        if mover_erro is not None:
-            linha_mouse = f"Falha ao mover o mouse: {mover_erro}"
-        self.update_status(
-            f"Tracker Edge: {tracker['minutos']}/{tracker['total']} min, faltam {tracker['faltam']} min.",
-            "green" if tracker["completo"] else "blue",
-        )
-        messagebox.showinfo(
-            "Tracker Edge",
-            f"Status: {status}\n"
-            f"Contabilizado: {tracker['minutos']} de {tracker['total']} min\n"
-            f"Faltam: {tracker['faltam']} min\n"
-            f"Score: {tracker['score']:.2f}\n\n"
-            f"{linha_mouse}",
-            parent=self.root,
-        )
-
-    def diagnosticar_mouse_deteccao(self):
-        if not self.save_config():
-            return
-
-        messagebox.showinfo(
-            "Diagnostico",
-            "A janela vai sumir por alguns segundos.\n\n"
-            "Deixe o mouse sobre uma area que voce quer conferir.\n"
-            "O app vai salvar um print do local atual do mouse, detectar o +10/+5 e mover "
-            "o mouse para o melhor resultado encontrado.",
-            parent=self.root,
-        )
-        self.root.withdraw()
-        self.update_status("Rodando diagnostico de mouse e deteccao...")
-        thread = threading.Thread(target=self._diagnosticar_mouse_deteccao_worker, daemon=True)
-        thread.start()
-
-    def _diagnosticar_mouse_deteccao_worker(self):
-        time.sleep(0.7)
-        resultado = {
-            "erro": None,
-            "mouse_x": None,
-            "mouse_y": None,
-            "debug_mouse": None,
-            "print_path": None,
-            "detectado": None,
-            "total_templates": 0,
-        }
-
-        try:
-            debug_mouse = get_mouse_position_debug()
-            mouse_x, mouse_y = get_mouse_position()
-            print_path = BASE_DIR / "assets" / "_debug_mouse_atual.png"
-            capturar_template_em_coordenada(print_path, mouse_x, mouse_y)
-
-            templates = listar_templates_plus_10(self.config) + listar_templates_plus_5(self.config)
-            resultado["total_templates"] = len(templates)
-            detectados = []
-            if templates:
-                detectados = localizar_templates(
-                    templates,
-                    confianca=self.config["deteccao_imagem"]["confianca"],
-                    regiao=self.config["deteccao_imagem"].get("regiao"),
-                    max_resultados=20,
-                    parar_score=self.config["deteccao_imagem"].get("score_forte", 0.95),
-                )
-
-            melhor = detectados[0] if detectados else None
-            if melhor is not None:
-                mover_mouse(melhor["x"], melhor["y"])
-
-            resultado.update(
-                {
-                    "mouse_x": mouse_x,
-                    "mouse_y": mouse_y,
-                    "debug_mouse": debug_mouse,
-                    "print_path": print_path,
-                    "detectado": melhor,
-                }
-            )
-        except Exception as exc:
-            resultado["erro"] = exc
-
-        self.root.after(0, lambda: self._finalizar_diagnostico_mouse_deteccao(resultado))
-
-    def _finalizar_diagnostico_mouse_deteccao(self, resultado):
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        if resultado["erro"] is not None:
-            self.update_status("Erro no diagnostico.", "red")
-            messagebox.showerror(
-                "Erro",
-                f"Nao foi possivel rodar o diagnostico: {resultado['erro']}",
-                parent=self.root,
-            )
-            return
-
-        debug_mouse = resultado.get("debug_mouse") or {}
-        logico = debug_mouse.get("logico")
-        fisico = debug_mouse.get("fisico")
-
-        if resultado["detectado"] is None:
-            mensagem = (
-                f"Print do mouse salvo em:\n{resultado['print_path']}\n\n"
-                f"Mouse atual: x={resultado['mouse_x']}, y={resultado['mouse_y']}\n"
-                f"Mouse logico: {logico}\n"
-                f"Mouse fisico: {fisico}\n"
-                f"Templates usados: {resultado['total_templates']}\n\n"
-                "Nenhum +10/+5 detectado."
-            )
-            self.update_status("Diagnostico concluido: nenhum +10/+5 detectado.", "orange")
-            messagebox.showwarning("Diagnostico", mensagem, parent=self.root)
-            return
-
-        detectado = resultado["detectado"]
-        mensagem = (
-            f"Print do mouse salvo em:\n{resultado['print_path']}\n\n"
-            f"Mouse inicial: x={resultado['mouse_x']}, y={resultado['mouse_y']}\n"
-            f"Mouse logico: {logico}\n"
-            f"Mouse fisico: {fisico}\n"
-            f"Templates usados: {resultado['total_templates']}\n"
-            f"Melhor deteccao: x={detectado['x']}, y={detectado['y']}\n"
-            f"Score: {detectado['score']:.2f}\n\n"
-            "O mouse foi movido para a melhor deteccao."
-        )
-        self.update_status("Diagnostico concluido: mouse movido para a deteccao.", "green")
-        messagebox.showinfo("Diagnostico", mensagem, parent=self.root)
-
-    def testar_deteccao_plus_10(self):
-        if not self.save_config():
-            return
-
-        self.update_status("Testando deteccao +10...")
-        self.root.withdraw()
-        thread = threading.Thread(target=self._testar_deteccao_plus_10_worker, daemon=True)
-        thread.start()
-
-    def _testar_deteccao_plus_10_worker(self):
-        time.sleep(0.7)
-        resultados = []
-        erro = None
-        total_templates = 0
-
-        try:
-            deteccao = self.config["deteccao_imagem"]
-            templates = listar_templates_plus_10(self.config)
-            total_templates = len(templates)
-            if not templates:
-                raise FileNotFoundError("Nenhum template +10 encontrado.")
-
-            resultados = localizar_templates(
-                templates,
-                confianca=deteccao["confianca"],
-                regiao=deteccao.get("regiao"),
-                max_resultados=20,
-                parar_score=deteccao.get("score_forte", 0.95),
-            )
-        except FileNotFoundError:
-            erro = (
-                "Template nao encontrado",
-                "Use Iniciar treino para salvar pelo menos uma amostra +10.",
-            )
-        except Exception as exc:
-            erro = ("Erro", f"Nao foi possivel testar a deteccao: {exc}")
-
-        self.root.after(
-            0,
-            lambda: self._finalizar_teste_deteccao(
-                resultados,
-                erro,
-                total_templates,
-            ),
-        )
-
-    def _finalizar_teste_deteccao(self, resultados, erro, total_templates):
-        mover_erro = None
-        if erro is None and resultados:
-            mover_erro = self.mover_mouse_para_resultado(resultados[0])
-
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        if erro is not None:
-            titulo, mensagem = erro
-            self.update_status(mensagem, "red")
-            messagebox.showerror(titulo, mensagem, parent=self.root)
-            return
-
-        if resultados:
-            melhor = resultados[0]
-            linha_mouse = "O mouse foi movido para essa deteccao."
-            if mover_erro is not None:
-                linha_mouse = f"Falha ao mover o mouse: {mover_erro}"
-            mensagem = (
-                f"+10 encontrado: {len(resultados)} resultado(s).\n"
-                f"Templates usados: {total_templates}\n"
-                f"Melhor score: {melhor['score']:.2f}\n"
-                f"Coordenada: x={melhor['x']}, y={melhor['y']}\n\n"
-                f"{linha_mouse}"
-            )
-            self.update_status(
-                f"+10 encontrado: mouse movido para a deteccao.",
-                "green",
-            )
-            messagebox.showinfo("Deteccao +10", mensagem, parent=self.root)
-            return
-
-        mensagem = (
-            "Nenhum +10 encontrado com o template atual.\n\n"
-            f"Templates usados: {total_templates}\n\n"
-            "Tente iniciar o treino novamente com o mouse bem no centro do selo +10, "
-            "ou reduza a confianca para 0.75."
-        )
-        self.update_status("Nenhum +10 encontrado com o template atual.", "orange")
-        messagebox.showwarning("Deteccao +10", mensagem, parent=self.root)
-
-    def testar_deteccao_plus_5(self):
-        if not self.save_config():
-            return
-
-        self.update_status("Testando deteccao +5...")
-        self.root.withdraw()
-        thread = threading.Thread(target=self._testar_deteccao_plus_5_worker, daemon=True)
-        thread.start()
-
-    def _testar_deteccao_plus_5_worker(self):
-        time.sleep(0.7)
-        resultados = []
-        erro = None
-        total_templates = 0
-
-        try:
-            deteccao = self.config["deteccao_imagem"]
-            templates = listar_templates_plus_5(self.config)
-            total_templates = len(templates)
-            if not templates:
-                raise FileNotFoundError("Nenhum template +5 encontrado.")
-
-            resultados = localizar_templates(
-                templates,
-                confianca=deteccao["confianca"],
-                regiao=deteccao.get("regiao"),
-                max_resultados=20,
-                parar_score=deteccao.get("score_forte", 0.95),
-            )
-        except FileNotFoundError:
-            erro = (
-                "Template +5 nao encontrado",
-                "Use Iniciar treino para salvar pelo menos uma amostra +5.",
-            )
-        except Exception as exc:
-            erro = ("Erro", f"Nao foi possivel testar a deteccao +5: {exc}")
-
-        self.root.after(
-            0,
-            lambda: self._finalizar_teste_deteccao_plus_5(
-                resultados,
-                erro,
-                total_templates,
-            ),
-        )
-
-    def _finalizar_teste_deteccao_plus_5(self, resultados, erro, total_templates):
-        mover_erro = None
-        if erro is None and resultados:
-            mover_erro = self.mover_mouse_para_resultado(resultados[0])
-
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-
-        if erro is not None:
-            titulo, mensagem = erro
-            self.update_status(mensagem, "red")
-            messagebox.showerror(titulo, mensagem, parent=self.root)
-            return
-
-        if resultados:
-            melhor = resultados[0]
-            linha_mouse = "O mouse foi movido para essa deteccao."
-            if mover_erro is not None:
-                linha_mouse = f"Falha ao mover o mouse: {mover_erro}"
-            mensagem = (
-                f"+5 encontrado: {len(resultados)} resultado(s).\n"
-                f"Templates usados: {total_templates}\n"
-                f"Melhor score: {melhor['score']:.2f}\n"
-                f"Coordenada: x={melhor['x']}, y={melhor['y']}\n\n"
-                f"{linha_mouse}"
-            )
-            self.update_status(
-                f"+5 encontrado: mouse movido para a deteccao.",
-                "green",
-            )
-            messagebox.showinfo("Deteccao +5", mensagem, parent=self.root)
-            return
-
-        mensagem = (
-            "Nenhum +5 encontrado com o template atual.\n\n"
-            f"Templates usados: {total_templates}\n\n"
-            "Tente iniciar o treino novamente com o mouse bem no centro do selo +5, "
-            "ou reduza a confianca para 0.75."
-        )
-        self.update_status("Nenhum +5 encontrado com o template atual.", "orange")
-        messagebox.showwarning("Deteccao +5", mensagem, parent=self.root)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def parse_int(self, var, nome):
         try:
@@ -2408,6 +1232,12 @@ class AutoRewardsApp:
     def parse_int_nao_negativo(self, var, nome):
         valor = self.parse_int(var, nome)
         if valor < 0:
+            raise ValueError(f"{nome} nao pode ser negativo.")
+        return valor
+
+    def parse_int_nao_negativo_or_none(self, var, nome):
+        valor = self.parse_int_or_none(var, nome)
+        if valor is not None and valor < 0:
             raise ValueError(f"{nome} nao pode ser negativo.")
         return valor
 
@@ -2453,6 +1283,7 @@ class AutoRewardsApp:
             )
             navegador = self.config.setdefault("navegador", {})
             navegador["forcar_segundo_monitor"] = self.forcar_edge_segundo_monitor_var.get()
+            navegador["buscar_titulo_janela"] = self.buscar_titulo_janela_edge_var.get()
             navegador.setdefault("titulo_janela", "Microsoft Edge")
             self.config.setdefault("automacao", {})
             modo_por_imagem = self.modo_conjunto_var.get() == "imagem"
@@ -2483,6 +1314,8 @@ class AutoRewardsApp:
             deteccao["usar_plus_10"] = self.usar_plus_10_var.get()
             deteccao["usar_plus_5"] = self.usar_plus_5_var.get()
             deteccao["usar_treinamento"] = self.usar_treinamento_var.get()
+            deteccao["usar_variacoes"] = self.usar_variacoes_deteccao_var.get()
+            deteccao["busca_flexivel"] = deteccao["usar_variacoes"]
             deteccao["treino_dir"] = (
                 self.treino_dir_var.get().strip() or "assets/treino_plus_10"
             )
@@ -2522,6 +1355,69 @@ class AutoRewardsApp:
 
             self.config.setdefault("debug", {})
             self.config["debug"]["abrir_cmd"] = self.abrir_cmd_debug_var.get()
+
+            dashboard = self.config.setdefault("dashboard", {})
+            dashboard["ativada"] = self.dashboard_ativada_var.get()
+            dashboard["user_uid"] = self.dashboard_user_uid_var.get().strip()
+            dashboard["api_endpoint"] = self.dashboard_api_endpoint_var.get().strip()
+            dashboard["api_secret"] = self.dashboard_api_secret_var.get().strip()
+            dashboard["source"] = self.dashboard_source_var.get().strip() or "python_app"
+            firebase_dashboard = dashboard.setdefault("firebase", {})
+            firebase_dashboard["apiKey"] = self.dashboard_api_key_var.get().strip()
+            firebase_dashboard["projectId"] = self.dashboard_project_id_var.get().strip()
+            firebase_dashboard.setdefault(
+                "authDomain",
+                "personalrewardsdashboard.firebaseapp.com",
+            )
+            firebase_dashboard.setdefault(
+                "storageBucket",
+                "personalrewardsdashboard.firebasestorage.app",
+            )
+            firebase_dashboard.setdefault("messagingSenderId", "990756612461")
+            firebase_dashboard.setdefault(
+                "appId",
+                "1:990756612461:web:ed86a992035287ec1fd264",
+            )
+            leitura_pontos = dashboard.setdefault("leitura_pontos", {})
+            leitura_pontos["double_click_x"] = self.parse_int_or_none(
+                self.dashboard_pontos_double_click_x_var,
+                "Dashboard double click X",
+            )
+            leitura_pontos["double_click_y"] = self.parse_int_or_none(
+                self.dashboard_pontos_double_click_y_var,
+                "Dashboard double click Y",
+            )
+            leitura_pontos["tentativas"] = self.parse_int(
+                self.dashboard_pontos_tentativas_var,
+                "Dashboard tentativas leitura",
+            )
+            leitura_pontos["restaurar_clipboard"] = (
+                self.dashboard_restaurar_clipboard_var.get()
+            )
+            leitura_pontos["min_points"] = self.parse_int_nao_negativo_or_none(
+                self.dashboard_min_points_var,
+                "Dashboard pontos minimos",
+            )
+            leitura_pontos["max_auto_drop"] = self.parse_int_nao_negativo_or_none(
+                self.dashboard_max_auto_drop_var,
+                "Dashboard queda maxima automatica",
+            )
+            leitura_pontos["max_raw_text_chars"] = self.parse_int(
+                self.dashboard_max_raw_text_chars_var,
+                "Dashboard max caracteres copiados",
+            )
+            if (
+                leitura_pontos["double_click_x"] is None
+                and leitura_pontos["double_click_y"] is not None
+            ) or (
+                leitura_pontos["double_click_x"] is not None
+                and leitura_pontos["double_click_y"] is None
+            ):
+                raise ValueError("Preencha X e Y da leitura de pontos, ou deixe ambos vazios.")
+            if leitura_pontos["tentativas"] <= 0:
+                raise ValueError("Dashboard tentativas precisa ser maior que zero.")
+            if leitura_pontos["max_raw_text_chars"] <= 0:
+                raise ValueError("Dashboard max caracteres copiados precisa ser maior que zero.")
 
             pesquisas = self.config["pesquisas"]
             pesquisas["desktop_coords"]["x"] = self.parse_int(
@@ -2638,6 +1534,79 @@ class AutoRewardsApp:
         self.log_execucao(message)
         self.update_status(message, color)
 
+    def iniciar_run_id(self):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.run_id = f"run_{timestamp}_{uuid.uuid4().hex[:8]}"
+        self.ultimo_pontos_lidos = None
+        self.ultima_leitura_pontos = None
+        self.log_execucao(f"RunId da execucao: {self.run_id}")
+
+    def iniciar_resumo_execucao(self):
+        self.resumo_execucao = {}
+        self.falhas_visuais = []
+        self.resetar_sessao_edge()
+
+    def marcar_etapa(self, nome, status, detalhe=""):
+        self.resumo_execucao[nome] = {
+            "status": status,
+            "detalhe": detalhe,
+        }
+
+    def capturar_screenshot_falha(self, nome, detalhe=""):
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        nome_limpo = "".join(
+            caractere.lower() if caractere.isalnum() else "_"
+            for caractere in nome
+        ).strip("_") or "falha"
+        caminho = LOGS_DIR / f"falha_{timestamp}_{nome_limpo}.png"
+
+        try:
+            try:
+                from PIL import ImageGrab
+
+                imagem = ImageGrab.grab(all_screens=True)
+            except Exception:
+                imagem = pa.screenshot()
+
+            imagem.save(caminho)
+            self.falhas_visuais.append({"nome": nome, "caminho": caminho, "detalhe": detalhe})
+            if detalhe:
+                self.log_execucao(f"Screenshot de falha salvo: {caminho} ({detalhe})")
+            else:
+                self.log_execucao(f"Screenshot de falha salvo: {caminho}")
+            return caminho
+        except Exception as exc:
+            self.log_execucao(f"Nao foi possivel salvar screenshot de falha '{nome}': {exc}")
+            return None
+
+    def escrever_relatorio_final(self, titulo="Resumo final da execucao"):
+        self.log_execucao("=" * 70)
+        self.log_execucao(titulo)
+        if not self.resumo_execucao:
+            self.log_execucao("Nenhuma etapa registrada no resumo.")
+        else:
+            for nome, info in self.resumo_execucao.items():
+                detalhe = info.get("detalhe") or ""
+                sufixo = f" - {detalhe}" if detalhe else ""
+                self.log_execucao(f"{nome}: {info.get('status', 'indefinido')}{sufixo}")
+
+        self.log_execucao(
+            f"Edge aberto pelo app nesta execucao: {self.edge_open_count} vez(es)."
+        )
+        self.log_execucao(
+            f"Reinicios do Edge por recuperacao Rewards: {self.edge_restart_count} vez(es)."
+        )
+
+        if self.falhas_visuais:
+            self.log_execucao("Screenshots de falha:")
+            for item in self.falhas_visuais:
+                detalhe = f" - {item['detalhe']}" if item.get("detalhe") else ""
+                self.log_execucao(f"{item['nome']}: {item['caminho']}{detalhe}")
+        else:
+            self.log_execucao("Screenshots de falha: nenhum.")
+        self.log_execucao("=" * 70)
+
     def confirmar_intervencao_mouse(self, evento):
         concluido = threading.Event()
         resposta = {"continuar": False}
@@ -2738,6 +1707,16 @@ class AutoRewardsApp:
             ),
         )
 
+    def emitir_alerta_cancelamento(self):
+        try:
+            winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+        except Exception:
+            pass
+
+    def pressionar_esc_interno(self):
+        self.ignorar_esc_interno_ate = time.time() + 0.6
+        pa.press("esc")
+
     def pausar_automacao(self):
         if not self.automation_running or self.stop_automation.is_set():
             return
@@ -2758,7 +1737,7 @@ class AutoRewardsApp:
         self.status_com_log("Automacao retomada.", "blue")
         self.atualizar_botoes_pausa()
 
-    def cancelar_automacao(self):
+    def cancelar_automacao(self, mensagem=None):
         if not self.automation_running:
             return
 
@@ -2767,8 +1746,28 @@ class AutoRewardsApp:
 
         self.stop_automation.set()
         self.pause_automation.clear()
-        self.status_com_log("Cancelando automacao... aguardando etapa atual parar.", "orange")
+        self.status_com_log(
+            mensagem or "Cancelando automacao... aguardando etapa atual parar.",
+            "orange",
+        )
         self.atualizar_botoes_pausa()
+
+    def cancelar_automacao_por_esc(self):
+        if time.time() < self.ignorar_esc_interno_ate:
+            return
+
+        if not self.automation_running or self.stop_automation.is_set():
+            return
+
+        if self.timer_automatico_aguardando:
+            self.log_execucao("ESC ignorado: timer automatico ainda esta aguardando.")
+            return
+
+        self.emitir_alerta_cancelamento()
+        self.trazer_app_para_frente()
+        self.cancelar_automacao(
+            "ESC pressionado. Cancelando automacao... aguardando etapa atual parar."
+        )
 
     def esperar_se_pausado(self):
         if not self.pause_automation.is_set():
@@ -2826,10 +1825,13 @@ class AutoRewardsApp:
             "Fluxo selecionado",
             abrir_cmd=self.config.get("debug", {}).get("abrir_cmd", True),
         )
+        self.iniciar_resumo_execucao()
+        self.iniciar_run_id()
         limpar_cache_execucao(self.config)
         self.stop_automation.clear()
         self.pause_automation.clear()
         self.stop_automation.pause_event = self.pause_automation
+        self.timer_automatico_aguardando = False
         self.set_running(True)
         self.status_com_log("Iniciando fluxo selecionado...")
         thread = threading.Thread(target=self.fluxo_completo, daemon=True)
@@ -2875,10 +1877,14 @@ class AutoRewardsApp:
             "Modo timer",
             abrir_cmd=self.config.get("debug", {}).get("abrir_cmd", True),
         )
+        self.iniciar_resumo_execucao()
+        self.iniciar_run_id()
+        self.marcar_etapa("Timer automatico", "aguardando", self.formatar_duracao(total_segundos))
         limpar_cache_execucao(self.config)
         self.stop_automation.clear()
         self.pause_automation.clear()
         self.stop_automation.pause_event = self.pause_automation
+        self.timer_automatico_aguardando = True
         self.set_running(True)
         self.status_com_log(
             f"Timer iniciado. Aguardando {self.formatar_duracao(total_segundos)}."
@@ -2898,10 +1904,14 @@ class AutoRewardsApp:
             "Conjunto diário",
             abrir_cmd=self.config.get("debug", {}).get("abrir_cmd", True),
         )
+        self.iniciar_resumo_execucao()
+        self.iniciar_run_id()
+        self.marcar_etapa("Conjunto diario", "pendente")
         limpar_cache_execucao(self.config)
         self.stop_automation.clear()
         self.pause_automation.clear()
         self.stop_automation.pause_event = self.pause_automation
+        self.timer_automatico_aguardando = False
         self.set_running(True)
         self.status_com_log("Iniciando somente o Conjunto diário...")
         thread = threading.Thread(target=self.fluxo_conjunto_diario, daemon=True)
@@ -2910,27 +1920,83 @@ class AutoRewardsApp:
     def fluxo_conjunto_diario(self):
         try:
             self.log_execucao("Preparando automação do Conjunto diário.")
+            self.marcar_etapa("Conjunto diario", "em execucao")
             pa.FAILSAFE = True
             pa.PAUSE = 0.05
             coordenadas = carregar_coordenadas(self.config)
             self.log_execucao(f"Coordenadas carregadas: {coordenadas}")
+            leitura_conjunto_before = self.registrar_pontos_etapa(
+                "conjunto_diario",
+                "before",
+                "ok",
+                "Leitura antes do Conjunto diario.",
+            )
+            if not self.garantir_sessao_edge():
+                self.marcar_etapa("Conjunto diario", "falhou", "Nao conseguiu preparar a sessao unica do Edge.")
+                self.capturar_screenshot_falha("conjunto_diario_edge", "Falha na sessao unica do Edge.")
+                self.status_com_log("Automacao interrompida ao preparar Edge.", "orange")
+                return
+            if self.abrir_painel_rewards_sessao(tentativas=2) is None:
+                self.marcar_etapa("Conjunto diario", "falhou", "Nao conseguiu abrir/validar o Rewards.")
+                self.capturar_screenshot_falha("conjunto_diario_rewards", "Popup Rewards nao ficou em estado valido.")
+                self.status_com_log("Automacao interrompida: Rewards nao ficou utilizavel.", "red")
+                return
+
             concluido = executar_fluxo_inicial(
                 self.config,
                 coordenadas=coordenadas,
                 stop_event=self.stop_automation,
                 status_callback=self.status_com_log,
                 safety_callback=self.confirmar_intervencao_mouse,
+                edge_ja_aberto=True,
+                painel_ja_aberto=True,
             )
 
             if concluido:
+                self.marcar_etapa("Conjunto diario", "ok")
+                self.registrar_pontos_etapa(
+                    "conjunto_diario",
+                    "after",
+                    "ok",
+                    "Conjunto diario concluido.",
+                    abrir_edge_primeiro=False,
+                )
                 self.status_com_log("Conjunto diário concluído.", "green")
             else:
+                self.marcar_etapa("Conjunto diario", "falhou/interrompido")
+                self.capturar_screenshot_falha("conjunto_diario", "Fluxo inicial retornou falha.")
+                self.registrar_pontos_etapa(
+                    "conjunto_diario",
+                    "after",
+                    "falhou",
+                    "Conjunto diario falhou/interrompido.",
+                    abrir_edge_primeiro=False,
+                )
                 self.status_com_log("Automacao interrompida.", "orange")
         except SystemExit as exc:
+            self.marcar_etapa("Conjunto diario", "falhou", str(exc))
+            self.capturar_screenshot_falha("conjunto_diario_erro", str(exc))
+            self.registrar_pontos_etapa(
+                "conjunto_diario",
+                "after",
+                "falhou",
+                str(exc),
+                abrir_edge_primeiro=False,
+            )
             self.status_com_log(str(exc), "red")
         except Exception as exc:
+            self.marcar_etapa("Conjunto diario", "erro", str(exc))
+            self.capturar_screenshot_falha("conjunto_diario_excecao", str(exc))
+            self.registrar_pontos_etapa(
+                "conjunto_diario",
+                "after",
+                "falhou",
+                str(exc),
+                abrir_edge_primeiro=False,
+            )
             self.status_com_log(f"Erro no Conjunto diário: {exc}", "red")
         finally:
+            self.escrever_relatorio_final()
             self.log_execucao("Finalizando thread do Conjunto diário.")
             self.set_running(False)
 
@@ -2938,23 +2004,31 @@ class AutoRewardsApp:
         fluxo_iniciado = False
         try:
             if not self.sleep_segundos_com_log(total_segundos, "Timer automatico"):
+                self.marcar_etapa("Timer automatico", "cancelado")
                 self.status_com_log("Timer cancelado pelo usuario.", "orange")
                 return
 
+            self.timer_automatico_aguardando = False
+            self.marcar_etapa("Timer automatico", "ok")
             self.status_com_log("Timer concluido. Iniciando fluxo selecionado...")
             fluxo_iniciado = True
             concluido = self.fluxo_completo()
             if concluido and not self.stop_automation.is_set():
                 self.desligar_computador()
             else:
+                self.marcar_etapa("Desligamento", "cancelado", "Fluxo nao foi concluido.")
                 self.status_com_log(
                     "Fluxo nao foi concluido com sucesso. O computador nao sera desligado.",
                     "orange",
                 )
         except Exception as exc:
+            self.marcar_etapa("Timer automatico", "erro", str(exc))
+            self.capturar_screenshot_falha("timer_automatico", str(exc))
             self.status_com_log(f"Erro no modo timer: {exc}", "red")
         finally:
+            self.timer_automatico_aguardando = False
             if not fluxo_iniciado:
+                self.escrever_relatorio_final()
                 self.log_execucao("Finalizando thread do modo timer.")
                 self.set_running(False)
 
@@ -2967,6 +2041,8 @@ class AutoRewardsApp:
             f"Fluxo concluido. Desligando o computador em {delay} segundo(s).",
             "green",
         )
+        self.marcar_etapa("Desligamento", "agendado", f"{delay}s")
+        self.escrever_relatorio_final("Resumo final da execucao com desligamento")
         subprocess.Popen(
             [
                 "shutdown",
@@ -2992,59 +2068,161 @@ class AutoRewardsApp:
             self.brotato_aberto = False
 
             if executar_conjunto:
+                self.marcar_etapa("Conjunto diario", "pendente")
+            if executar_pesquisas:
+                self.marcar_etapa("Pesquisar com o Bing", "pendente")
+            if executar_brotato:
+                self.marcar_etapa("Jogar PC (Brotato)", "pendente")
+            if executar_edge_tempo:
+                self.marcar_etapa("Navegar com Edge", "pendente")
+
+            if executar_conjunto:
+                leitura_conjunto_before = self.registrar_pontos_etapa(
+                    "conjunto_diario",
+                    "before",
+                    "ok",
+                    "Leitura antes do Conjunto diario.",
+                )
+                if leitura_conjunto_before and leitura_conjunto_before.get("pontos") is not None:
+                    edge_aberto = True
+
+                self.marcar_etapa("Conjunto diario", "em execucao")
                 coordenadas = carregar_coordenadas(self.config)
                 self.log_execucao(f"Coordenadas carregadas: {coordenadas}")
+                if not self.garantir_sessao_edge():
+                    self.marcar_etapa("Conjunto diario", "falhou", "Nao conseguiu preparar a sessao unica do Edge.")
+                    self.capturar_screenshot_falha("conjunto_diario_edge", "Falha na sessao unica do Edge.")
+                    self.status_com_log("Automacao interrompida ao preparar Edge.", "orange")
+                    return False
+                edge_aberto = True
+                if self.abrir_painel_rewards_sessao(tentativas=2) is None:
+                    self.marcar_etapa("Conjunto diario", "falhou", "Nao conseguiu abrir/validar o Rewards.")
+                    self.capturar_screenshot_falha("conjunto_diario_rewards", "Popup Rewards nao ficou em estado valido.")
+                    self.status_com_log("Automacao interrompida: Rewards nao ficou utilizavel.", "red")
+                    return False
                 concluido = executar_fluxo_inicial(
                     self.config,
                     coordenadas=coordenadas,
                     stop_event=self.stop_automation,
                     status_callback=self.status_com_log,
                     safety_callback=self.confirmar_intervencao_mouse,
+                    edge_ja_aberto=True,
+                    painel_ja_aberto=True,
                 )
 
                 if not concluido:
+                    self.marcar_etapa("Conjunto diario", "falhou/interrompido")
+                    self.capturar_screenshot_falha("conjunto_diario", "Fluxo inicial retornou falha.")
+                    self.registrar_pontos_etapa(
+                        "conjunto_diario",
+                        "after",
+                        "falhou",
+                        "Conjunto diario falhou/interrompido.",
+                        abrir_edge_primeiro=False,
+                    )
                     self.status_com_log("Automacao interrompida.", "orange")
                     return False
 
+                self.marcar_etapa("Conjunto diario", "ok")
+                self.registrar_pontos_etapa(
+                    "conjunto_diario",
+                    "after",
+                    "ok",
+                    "Conjunto diario concluido.",
+                    abrir_edge_primeiro=False,
+                )
                 edge_aberto = True
                 if executar_pesquisas:
                     self.status_com_log("Conjunto diário concluído. Iniciando Pesquisar com o Bing...")
                     if not self.sleep_intervalo(
                         self.config["pesquisas"]["delay_apos_conjunto_diario"]
                     ):
+                        self.marcar_etapa("Pesquisar com o Bing", "cancelado", "Interrompido antes de iniciar.")
                         self.status_com_log("Automacao interrompida pelo usuario.", "orange")
                         return False
                 else:
                     self.status_com_log("Conjunto diário concluído. Pesquisar com o Bing desativado.", "green")
 
             if executar_pesquisas:
-                if not executar_conjunto:
-                    self.status_com_log("Abrindo Edge para executar somente Pesquisar com o Bing...")
-                    if not abrir_edge(
-                        self.config,
-                        stop_event=self.stop_automation,
-                        status_callback=self.status_com_log,
-                    ):
-                        self.status_com_log("Automacao interrompida ao abrir Edge.", "orange")
-                        return False
+                leitura_pesquisas_before = self.registrar_pontos_etapa(
+                    "pesquisar_bing",
+                    "before",
+                    "ok",
+                    "Leitura antes de Pesquisar com o Bing.",
+                    reutilizar_ultima_leitura=executar_conjunto,
+                )
+                if leitura_pesquisas_before and leitura_pesquisas_before.get("pontos") is not None:
                     edge_aberto = True
-                if not self.automation_search_logic():
+
+                self.marcar_etapa("Pesquisar com o Bing", "em execucao")
+                if not self.garantir_sessao_edge():
+                    self.marcar_etapa("Pesquisar com o Bing", "falhou", "Nao conseguiu preparar a sessao unica do Edge.")
+                    self.capturar_screenshot_falha("pesquisar_com_bing_edge", "Falha na sessao unica do Edge.")
+                    self.status_com_log("Automacao interrompida ao preparar Edge.", "orange")
                     return False
+                edge_aberto = True
+                if not self.automation_search_logic():
+                    self.marcar_etapa("Pesquisar com o Bing", "falhou/interrompido")
+                    self.capturar_screenshot_falha("pesquisar_com_bing", "Fluxo de pesquisas retornou falha.")
+                    self.registrar_pontos_etapa(
+                        "pesquisar_bing",
+                        "after",
+                        "falhou",
+                        "Pesquisar com o Bing falhou/interrompido.",
+                    )
+                    return False
+                self.marcar_etapa("Pesquisar com o Bing", "ok")
+                self.registrar_pontos_etapa(
+                    "pesquisar_bing",
+                    "after",
+                    "ok",
+                    "Pesquisar com o Bing concluido.",
+                )
                 edge_aberto = True
 
             if executar_brotato and executar_edge_tempo:
                 if not self.executar_brotato_logic(com_timer=False):
+                    self.marcar_etapa("Jogar PC (Brotato)", "falhou/interrompido")
+                    self.capturar_screenshot_falha("brotato", "Falha ao abrir Brotato para rodar junto com Edge.")
                     return False
-                edge_aberto = False
+                edge_aberto = self.sessao_edge_valida()
 
             if executar_edge_tempo:
+                leitura_edge_before = self.registrar_pontos_etapa(
+                    "navegar_edge",
+                    "before",
+                    "ok",
+                    "Leitura antes de Navegar com Edge.",
+                    reutilizar_ultima_leitura=bool(executar_conjunto or executar_pesquisas),
+                )
+                if leitura_edge_before and leitura_edge_before.get("pontos") is not None:
+                    edge_aberto = True
+
+                self.marcar_etapa("Navegar com Edge", "em execucao")
                 if not self.executar_tempo_edge_logic(
                     edge_ja_aberto=edge_aberto,
                     fechar_brotato_antes_verificar=executar_brotato,
                 ):
+                    self.marcar_etapa("Navegar com Edge", "falhou/interrompido")
+                    self.capturar_screenshot_falha("navegar_com_edge", "Fluxo de tempo no Edge retornou falha.")
+                    self.registrar_pontos_etapa(
+                        "navegar_edge",
+                        "after",
+                        "falhou",
+                        "Navegar com Edge falhou/interrompido.",
+                    )
                     return False
+                self.marcar_etapa("Navegar com Edge", "ok")
+                self.registrar_pontos_etapa(
+                    "navegar_edge",
+                    "after",
+                    "ok",
+                    "Navegar com Edge concluido.",
+                )
             elif executar_brotato:
                 if not self.executar_brotato_logic(com_timer=True):
+                    self.marcar_etapa("Jogar PC (Brotato)", "falhou/interrompido")
+                    self.capturar_screenshot_falha("brotato", "Fluxo do Brotato retornou falha.")
                     return False
 
             if not executar_conjunto and not executar_pesquisas and not executar_edge_tempo and not executar_brotato:
@@ -3054,12 +2232,15 @@ class AutoRewardsApp:
             self.status_com_log("Fluxo selecionado concluido.", "green")
             return True
         except SystemExit as exc:
+            self.capturar_screenshot_falha("erro_automacao", str(exc))
             self.status_com_log(str(exc), "red")
             return False
         except Exception as exc:
+            self.capturar_screenshot_falha("erro_automacao", str(exc))
             self.status_com_log(f"Erro na automacao: {exc}", "red")
             return False
         finally:
+            self.escrever_relatorio_final()
             self.log_execucao("Finalizando thread do fluxo completo.")
             self.set_running(False)
 
@@ -3293,27 +2474,41 @@ class AutoRewardsApp:
         return self.fechar_brotato()
 
     def executar_brotato_logic(self, com_timer=True):
+        self.marcar_etapa("Jogar PC (Brotato)", "em execucao")
         if not self.abrir_brotato():
+            self.marcar_etapa("Jogar PC (Brotato)", "falhou", "Nao abriu o jogo.")
+            self.capturar_screenshot_falha("brotato_abrir", "Falha ao abrir Brotato.")
             return False
         if not self.aguardar_brotato_menu():
+            self.marcar_etapa("Jogar PC (Brotato)", "falhou", "Menu/Gamer Tag nao detectado.")
+            self.capturar_screenshot_falha("brotato_menu", "Nao detectou Gamer Tag/Menu.")
             return False
 
         if not com_timer:
+            self.marcar_etapa("Jogar PC (Brotato)", "ok", "Aberto em background para rodar junto com Edge.")
             self.status_com_log("Brotato aberto para rodar junto com Navegar com Edge.")
             return True
 
         minutos = float(self.config.get("brotato", {}).get("tempo_minutos", 17))
         self.status_com_log(f"Brotato ficara aberto por {minutos:.1f} minuto(s).")
         if not self.sleep_minutos_com_log(minutos, "Timer Brotato"):
+            self.marcar_etapa("Jogar PC (Brotato)", "cancelado", "Timer interrompido.")
             self.status_com_log("Automacao interrompida durante timer do Brotato.", "orange")
             return False
 
-        return self.fechar_brotato()
+        if not self.fechar_brotato():
+            self.marcar_etapa("Jogar PC (Brotato)", "falhou", "Nao conseguiu fechar o jogo.")
+            self.capturar_screenshot_falha("brotato_fechar", "Falha ao fechar Brotato.")
+            return False
+
+        self.marcar_etapa("Jogar PC (Brotato)", "ok", f"Timer de {minutos:.1f} min concluido.")
+        return True
 
     def executar_tempo_edge_logic(self, edge_ja_aberto=False, fechar_brotato_antes_verificar=False):
         edge_tempo = self.config.get("edge_tempo", {})
         url_video = edge_tempo.get("url_video", "").strip()
         if not url_video:
+            self.marcar_etapa("Navegar com Edge", "falhou", "URL do video vazia.")
             self.status_com_log("Navegar com Edge ativado, mas a URL do vídeo está vazia.", "red")
             return False
 
@@ -3322,15 +2517,11 @@ class AutoRewardsApp:
         max_tentativas = int(edge_tempo.get("max_tentativas", 3))
         espera_atual = primeira_espera
 
-        if not edge_ja_aberto:
-            self.status_com_log("Abrindo Edge para iniciar tempo no navegador...")
-            if not abrir_edge(
-                self.config,
-                stop_event=self.stop_automation,
-                status_callback=self.status_com_log,
-            ):
-                self.status_com_log("Automacao interrompida ao abrir Edge.", "orange")
-                return False
+        if not self.garantir_sessao_edge():
+            self.marcar_etapa("Navegar com Edge", "falhou", "Nao conseguiu preparar a sessao unica do Edge.")
+            self.capturar_screenshot_falha("edge_tempo_abrir", "Falha na sessao unica do Edge.")
+            self.status_com_log("Automacao interrompida ao preparar Edge.", "orange")
+            return False
 
         for tentativa in range(1, max_tentativas + 1):
             self.status_com_log(
@@ -3338,6 +2529,8 @@ class AutoRewardsApp:
                 f"Video ficara aberto por {espera_atual:.1f} minuto(s)."
             )
             if not self.abrir_video_no_edge(url_video):
+                self.marcar_etapa("Navegar com Edge", "falhou", "Nao abriu o video.")
+                self.capturar_screenshot_falha("edge_tempo_video", "Falha ao abrir video no Edge.")
                 return False
 
             if not self.sleep_minutos_com_log(
@@ -3350,16 +2543,14 @@ class AutoRewardsApp:
             if fechar_brotato_antes_verificar:
                 if not self.garantir_brotato_fechado():
                     return False
-                self.status_com_log("Refocando Edge antes de fechar e verificar o Rewards...")
-                if not abrir_edge(
-                    self.config,
-                    stop_event=self.stop_automation,
-                    status_callback=self.status_com_log,
-                ):
+                self.status_com_log("Refocando Edge antes de verificar o Rewards...")
+                if not self.garantir_sessao_edge():
+                    self.capturar_screenshot_falha("edge_refocar_verificacao", "Falha ao refocar a sessao unica do Edge.")
                     return False
 
-            tracker = self.reabrir_edge_e_verificar_tracker()
+            tracker = self.atualizar_painel_rewards_e_verificar_tracker()
             if tracker is None:
+                self.marcar_etapa("Navegar com Edge", "falhou", "Nao verificou tracker do Rewards.")
                 self.status_com_log(
                     "Nao consegui verificar o tempo do Edge. Treine os estados do tracker e tente novamente.",
                     "red",
@@ -3367,6 +2558,11 @@ class AutoRewardsApp:
                 return False
 
             if tracker["completo"]:
+                self.marcar_etapa(
+                    "Navegar com Edge",
+                    "ok",
+                    f"{tracker['minutos']}/{tracker['total']} min.",
+                )
                 self.status_com_log(
                     f"Task Navegar com Edge completa: {tracker['minutos']}/{tracker['total']} min.",
                     "green",
@@ -3375,6 +2571,11 @@ class AutoRewardsApp:
 
             faltam = int(tracker["faltam"])
             if tentativa >= max_tentativas:
+                self.marcar_etapa(
+                    "Navegar com Edge",
+                    "incompleto",
+                    f"Faltam {faltam} min; limite de verificacoes atingido.",
+                )
                 self.status_com_log(
                     f"Navegar com Edge ainda incompleto: faltam {faltam} min e o limite de verificações foi atingido.",
                     "orange",
@@ -3392,6 +2593,13 @@ class AutoRewardsApp:
 
     def abrir_video_no_edge(self, url_video):
         if not self.esperar_se_pausado():
+            return False
+
+        if not self.garantir_sessao_edge():
+            return False
+
+        self.pressionar_esc_interno()
+        if not self.sleep_interruptivel(0.3):
             return False
 
         self.status_com_log(f"Abrindo video no Edge: {url_video}")
@@ -3414,16 +2622,12 @@ class AutoRewardsApp:
         except Exception:
             pa.write(texto, interval=0.01)
 
-    def reabrir_edge_e_verificar_tracker(self):
-        if not self.fechar_edge_ativo():
-            return None
+    def atualizar_painel_rewards_e_verificar_tracker(self):
+        limpar_cache_execucao(self.config)
+        self.status_com_log("Cache visual limpo antes de atualizar o painel Rewards.")
 
-        self.status_com_log("Reabrindo Edge para verificar task Navegar com Edge...")
-        if not abrir_edge(
-            self.config,
-            stop_event=self.stop_automation,
-            status_callback=self.status_com_log,
-        ):
+        if not self.garantir_sessao_edge():
+            self.capturar_screenshot_falha("edge_refocar_verificacao", "Nao conseguiu refocar a sessao unica do Edge.")
             return None
 
         delay = float(self.config.get("edge_tempo", {}).get("delay_apos_reabrir_edge", 2.0))
@@ -3431,33 +2635,99 @@ class AutoRewardsApp:
             return None
 
         coordenadas = carregar_coordenadas(self.config)
-        self.status_com_log("Abrindo menu do Microsoft Rewards para checar progresso...")
-        if not abrir_extensao_rewards(
-            self.config,
-            coordenadas,
-            stop_event=self.stop_automation,
-            status_callback=self.status_com_log,
-            safety_callback=self.confirmar_intervencao_mouse,
-        ):
-            return None
+        max_tentativas = 2
+        for tentativa in range(1, max_tentativas + 1):
+            if not self.esperar_se_pausado():
+                return None
 
-        if not self.sleep_intervalo(self.config["tempos"]["apos_icone_extensao"]):
-            return None
+            self.status_com_log(
+                f"Abrindo painel Rewards para checar progresso "
+                f"(tentativa {tentativa}/{max_tentativas})..."
+            )
+            anchor = self.abrir_painel_rewards_sessao(tentativas=2)
+            if anchor is None:
+                self.capturar_screenshot_falha(
+                    f"rewards_extensao_tentativa_{tentativa}",
+                    "Nao conseguiu abrir/validar popup Rewards.",
+                )
+                if tentativa >= max_tentativas:
+                    break
+                continue
 
-        return abrir_ver_tudo_e_detectar_tracker_edge(
-            self.config,
-            stop_event=self.stop_automation,
-            status_callback=self.status_com_log,
-            safety_callback=self.confirmar_intervencao_mouse,
+            tracker = abrir_ver_tudo_e_detectar_tracker_edge(
+                self.config,
+                stop_event=self.stop_automation,
+                status_callback=self.status_com_log,
+                safety_callback=self.confirmar_intervencao_mouse,
+            )
+            if tracker is not None:
+                return tracker
+
+            self.capturar_screenshot_falha(
+                f"ver_tudo_tracker_tentativa_{tentativa}",
+                "Nao conseguiu achar Ver tudo ou detectar o tracker Edge.",
+            )
+            if tentativa >= max_tentativas:
+                break
+
+            self.status_com_log(
+                "Nao consegui verificar nessa tentativa. Fechando apenas o painel Rewards e tentando de novo.",
+                "orange",
+            )
+            self.pressionar_esc_interno()
+            limpar_cache_execucao(self.config)
+            if not self.sleep_interruptivel(1.0):
+                return None
+
+        self.status_com_log(
+            "Popup Rewards nao entregou o tracker. Tentando fallback pela pagina completa do Rewards.",
+            "orange",
         )
+        return self.detectar_tracker_pagina_rewards_completa()
 
-    def fechar_edge_ativo(self):
-        if not self.esperar_se_pausado():
-            return False
+    def detectar_tracker_pagina_rewards_completa(self):
+        if not self.garantir_sessao_edge():
+            return None
 
-        self.status_com_log("Fechando janela atual do Edge para forcar atualizacao do Rewards...")
-        pa.hotkey("alt", "f4")
-        return self.sleep_interruptivel(2.0)
+        url = self.config.get("rewards_estado", {}).get("url_rewards", "https://rewards.bing.com/")
+        self.status_com_log(f"Abrindo pagina completa do Rewards para fallback: {url}")
+        self.pressionar_esc_interno()
+        if not self.sleep_interruptivel(0.3):
+            return None
+        pa.hotkey("ctrl", "l")
+        if not self.sleep_interruptivel(0.3):
+            return None
+        self.inserir_texto(url)
+        pa.press("enter")
+
+        delay = float(self.config.get("rewards_estado", {}).get("delay_apos_reiniciar_edge", 4.0))
+        self.status_com_log(f"Aguardando pagina Rewards carregar por {delay:.1f}s.")
+        if not self.sleep_interruptivel(delay):
+            return None
+
+        limpar_cache_execucao(self.config)
+        estado = self.detectar_estado_rewards()
+        if estado.get("estado") not in {"pagina_rewards_completa", "popup_rewards_ok", "edge_normal"}:
+            self.status_com_log(
+                f"Fallback Rewards em estado inesperado: {estado.get('estado')}.",
+                "orange",
+            )
+
+        tracker = detectar_estado_tracker_edge(
+            self.config,
+            status_callback=self.status_com_log,
+            stop_event=self.stop_automation,
+            usar_regiao_painel=False,
+        )
+        if tracker is not None:
+            self.status_com_log("Tracker Edge identificado pelo fallback da pagina Rewards.", "green")
+            return tracker
+
+        self.capturar_screenshot_falha(
+            "tracker_rewards_pagina_completa",
+            "Fallback pela pagina completa do Rewards nao encontrou o tracker.",
+        )
+        return None
 
     def sleep_minutos_com_log(self, minutos, label):
         return self.sleep_segundos_com_log(float(minutos) * 60, label)
@@ -3531,7 +2801,7 @@ class AutoRewardsApp:
 
     def on_press(self, key):
         if key == keyboard.Key.esc:
-            self.pausar_automacao()
+            self.cancelar_automacao_por_esc()
 
     def start_keyboard_listener(self):
         listener = keyboard.Listener(on_press=self.on_press)
