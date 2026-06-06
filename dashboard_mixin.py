@@ -14,9 +14,25 @@ from dashboard_rewards import (
     normalizar_pontos_texto,
     validar_leitura_pontos,
 )
+from deteccao_imagem import obter_bbox_virtual
 
 
 class DashboardMixin:
+    def ponto_dentro_da_tela_atual(self, x, y, margem=0):
+        try:
+            virtual_x, virtual_y, virtual_width, virtual_height = obter_bbox_virtual()
+        except Exception:
+            return True
+
+        return (
+            virtual_x - margem
+            <= int(x)
+            <= virtual_x + virtual_width + margem
+            and virtual_y - margem
+            <= int(y)
+            <= virtual_y + virtual_height + margem
+        )
+
     def dashboard_ativo(self):
         return bool(self.config.get("dashboard", {}).get("ativada", False))
 
@@ -84,11 +100,27 @@ class DashboardMixin:
             }
 
         anchor_x, anchor_y = anchor
+        usar_posicao_capturada = False
         if double_click_x is not None and double_click_y is not None:
-            x = int(double_click_x)
-            y = int(double_click_y)
-            origem_posicao = "posicao_capturada"
-        else:
+            try:
+                x_capturado = int(double_click_x)
+                y_capturado = int(double_click_y)
+                if self.ponto_dentro_da_tela_atual(x_capturado, y_capturado):
+                    x = x_capturado
+                    y = y_capturado
+                    origem_posicao = "posicao_capturada"
+                    usar_posicao_capturada = True
+                else:
+                    self.log_execucao(
+                        "Dashboard: posicao capturada dos pontos fica fora da tela atual "
+                        f"(x={x_capturado}, y={y_capturado}). Usando offset do painel."
+                    )
+            except (TypeError, ValueError):
+                self.log_execucao(
+                    "Dashboard: posicao capturada dos pontos esta invalida. Usando offset do painel."
+                )
+
+        if not usar_posicao_capturada:
             x = anchor_x + offset_x
             y = anchor_y + offset_y
             origem_posicao = "offset_legado"

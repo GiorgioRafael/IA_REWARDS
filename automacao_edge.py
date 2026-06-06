@@ -1405,7 +1405,7 @@ def localizar_alvo_visual(config, nome, status_callback=None, regiao=None, stop_
 
     regiao_config = regiao or normalizar_regiao_manual(alvo_config.get("regiao"))
     if regiao_config is None:
-        regiao_config = obter_regiao_padrao_alvo_visual(nome)
+        regiao_config = obter_regiao_padrao_alvo_visual(nome, config)
         if regiao_config is not None:
             avisar(
                 status_callback,
@@ -1489,7 +1489,7 @@ def localizar_alvo_visual(config, nome, status_callback=None, regiao=None, stop_
             )
         return None
 
-    melhor = resultados[0]
+    melhor = max(resultados, key=lambda item: float(item.get("score", 0)))
     avisar(
         status_callback,
         f"Melhor alvo '{nome}': x={melhor['x']}, y={melhor['y']}, "
@@ -2177,15 +2177,58 @@ def derivar_regiao_painel_por_exibir_painel(config, status_callback=None):
     return regiao
 
 
-def obter_regiao_padrao_alvo_visual(nome):
+def obter_regiao_topo_janela_ativa(config=None):
+    hwnd = obter_janela_ativa()
+    if not janela_windows_valida(hwnd):
+        return None
+
+    if config is not None and not janela_parece_edge(hwnd, config.get("navegador", {})):
+        return None
+
+    rect = wintypes.RECT()
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return None
+
+    width = int(rect.right - rect.left)
+    height = int(rect.bottom - rect.top)
+    if width <= 0 or height <= 0:
+        return None
+
+    return limitar_regiao_virtual(
+        int(rect.left),
+        int(rect.top),
+        width,
+        min(190, height),
+    )
+
+
+def obter_regiao_padrao_alvo_visual(nome, config=None):
     virtual_x, virtual_y, virtual_width, virtual_height = obter_bbox_virtual()
-    if nome in {"icone_extensao", "voltar"}:
-        altura = min(190, virtual_height)
+    topo_janela = obter_regiao_topo_janela_ativa(config)
+    topo = topo_janela or {
+        "x": virtual_x,
+        "y": virtual_y,
+        "width": virtual_width,
+        "height": min(190, virtual_height),
+    }
+
+    if nome == "icone_extensao":
+        largura = min(topo["width"], max(420, int(topo["width"] * 0.38)))
         return {
-            "x": virtual_x,
-            "y": virtual_y,
-            "width": virtual_width,
-            "height": altura,
+            "x": int(topo["x"] + topo["width"] - largura),
+            "y": int(topo["y"]),
+            "width": int(largura),
+            "height": int(topo["height"]),
+        }
+
+    if nome == "voltar":
+        largura = min(topo["width"], max(260, int(topo["width"] * 0.30)))
+        return {
+            "x": int(topo["x"]),
+            "y": int(topo["y"]),
+            "width": int(largura),
+            "height": int(topo["height"]),
         }
 
     if nome == "brotato_icone_barra":
