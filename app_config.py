@@ -55,7 +55,7 @@ DEFAULT_CONFIG = {
         "confianca_flexivel": 0.78,
         "escalas_flexiveis": [0.9, 0.95, 1.0, 1.05, 1.1],
         "validar_sinal_mais": True,
-        "max_cards": 3,
+        "max_cards": 20,
         "max_scrolls": 40,
         "scroll_amount": -2,
         "detectar_fim_scroll": True,

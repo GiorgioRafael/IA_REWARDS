@@ -2814,7 +2814,7 @@ def executar_cards_por_imagem(
         )
         return None
 
-    max_cards = int(deteccao["max_cards"])
+    max_cards = max(0, int(deteccao["max_cards"]))
     limite_scrolls = int(deteccao.get("max_scrolls", 40))
     alvos_clicados = []
     cards_executados = 0
@@ -2840,11 +2840,18 @@ def executar_cards_por_imagem(
         return False
 
     fim_scroll_detectado = False
-    while cards_executados < max_cards:
+    conferindo_apos_card = False
+    while True:
         if deve_parar(stop_event):
             return False
 
-        avisar(status_callback, "Procurando +10/+5 na area visivel antes de rolar...")
+        if conferindo_apos_card:
+            avisar(
+                status_callback,
+                "Voltamos do card. Procurando outro +10/+5 na mesma area antes de rolar ou finalizar...",
+            )
+        else:
+            avisar(status_callback, "Procurando +10/+5 na area visivel antes de rolar...")
         alvo = localizar_alvo_bonus(
             config,
             alvos_clicados,
@@ -2852,6 +2859,16 @@ def executar_cards_por_imagem(
             stop_event=stop_event,
         )
         if alvo is not None:
+            if max_cards and cards_executados >= max_cards:
+                avisar(
+                    status_callback,
+                    "Ainda existe bonus visivel, mas o limite de seguranca de cards "
+                    f"foi atingido ({max_cards}). Aumente 'Max cards' para executar mais.",
+                    "orange",
+                )
+                break
+
+            conferindo_apos_card = False
             cards_executados += 1
             estado_scroll["cards_executados"] = cards_executados
             alvos_clicados.append({"x": alvo["x"], "y": alvo["y"]})
@@ -2885,11 +2902,23 @@ def executar_cards_por_imagem(
 
             limpar_cache_execucao(config)
             avisar(status_callback, "Cache visual limpo depois de voltar do card.")
-            avisar(status_callback, "Voltamos do card. Conferindo a mesma area antes de rolar.")
+            conferindo_apos_card = True
             continue
+
+        if conferindo_apos_card:
+            avisar(status_callback, "Nenhum outro +10/+5 encontrado na mesma area apos voltar.")
+            conferindo_apos_card = False
 
         if fim_scroll_detectado:
             avisar(status_callback, "Fim do scroll detectado e nenhum +10/+5 novo encontrado.", "orange")
+            break
+
+        if max_cards and cards_executados >= max_cards:
+            avisar(
+                status_callback,
+                f"Limite de seguranca de cards atingido ({max_cards}) depois de conferir a area atual.",
+                "orange",
+            )
             break
 
         if scrolls >= limite_scrolls:

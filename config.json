@@ -91,7 +91,7 @@
       1.1
     ],
     "validar_sinal_mais": true,
-    "max_cards": 3,
+    "max_cards": 20,
     "max_scrolls": 40,
     "scroll_amount": -5,
     "detectar_fim_scroll": true,
