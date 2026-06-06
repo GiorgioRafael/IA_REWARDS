@@ -1413,6 +1413,8 @@ def localizar_alvo_visual(config, nome, status_callback=None, regiao=None, stop_
                 f"x={regiao_config['x']}, y={regiao_config['y']}, "
                 f"w={regiao_config['width']}, h={regiao_config['height']}.",
             )
+        else:
+            avisar(status_callback, f"Busca do alvo '{nome}' usando a tela inteira.")
     confianca = float(alvo_config.get("confianca", 0.82))
     score_forte = alvo_config.get("score_forte", 0.95)
     avisar(

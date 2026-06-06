@@ -28,6 +28,20 @@ from deteccao_imagem import (
 
 
 class TrainingDetectionMixin:
+    def obter_offset_captura_alvo_visual(self, nome):
+        alvo_config = self.config.get("alvos_visuais", {}).get(nome, {})
+        return (
+            int(alvo_config.get("capture_offset_x", 0) or 0),
+            int(alvo_config.get("capture_offset_y", 0) or 0),
+        )
+
+    def obter_offset_captura_tracker(self):
+        tracker = self.config.get("edge_tracker", {})
+        return (
+            int(tracker.get("capture_offset_x", 0) or 0),
+            int(tracker.get("capture_offset_y", 0) or 0),
+        )
+
     def caminho_template_plus_10(self):
         caminho = Path(self.template_plus_10_var.get().strip() or "assets/plus_10.png")
         if caminho.is_absolute():
@@ -483,10 +497,10 @@ class TrainingDetectionMixin:
             if key == keyboard.Key.f9:
                 try:
                     mouse_x, mouse_y = get_mouse_position()
-                    deteccao = self.config["deteccao_imagem"]
-                    captura_x = mouse_x + int(deteccao["capture_offset_x"])
-                    captura_y = mouse_y + int(deteccao["capture_offset_y"])
                     alvo_config = self.config.get("alvos_visuais", {}).get(nome, {})
+                    offset_x, offset_y = self.obter_offset_captura_alvo_visual(nome)
+                    captura_x = mouse_x + offset_x
+                    captura_y = mouse_y + offset_y
                     largura = int(alvo_config.get("capture_width", 70))
                     altura = int(alvo_config.get("capture_height", 50))
                     treino_dir = self.caminho_treino_alvo_visual(nome)
@@ -675,10 +689,10 @@ class TrainingDetectionMixin:
             if key == keyboard.Key.f9:
                 try:
                     mouse_x, mouse_y = get_mouse_position()
-                    deteccao = self.config["deteccao_imagem"]
                     tracker = self.config.get("edge_tracker", {})
-                    captura_x = mouse_x + int(deteccao["capture_offset_x"])
-                    captura_y = mouse_y + int(deteccao["capture_offset_y"])
+                    offset_x, offset_y = self.obter_offset_captura_tracker()
+                    captura_x = mouse_x + offset_x
+                    captura_y = mouse_y + offset_y
                     largura = int(tracker.get("capture_width", 130))
                     altura = int(tracker.get("capture_height", 42))
                     treino_dir = self.caminho_treino_tracker_estado(minutos)
