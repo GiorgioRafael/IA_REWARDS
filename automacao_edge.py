@@ -766,6 +766,7 @@ def usar_versao_fixa(config):
 def limpar_cache_execucao(config):
     config["_runtime_cache"] = {
         "alvos_visuais": {},
+        "painel_rewards": None,
     }
 
 
@@ -777,7 +778,45 @@ def limpar_cache_alvos_visuais(config):
 def obter_cache_execucao(config):
     cache = config.setdefault("_runtime_cache", {})
     cache.setdefault("alvos_visuais", {})
+    cache.setdefault("painel_rewards", None)
     return cache
+
+
+def salvar_cache_alvo_visual(config, nome, x, y, alvo=None):
+    cache_alvos = obter_cache_execucao(config)["alvos_visuais"]
+    cache_alvos[nome] = {
+        "x": int(x),
+        "y": int(y),
+        "score": float((alvo or {}).get("score", 0)),
+        "template": (alvo or {}).get("template"),
+    }
+
+
+def copiar_regiao_painel(regiao):
+    if regiao is None:
+        return None
+
+    copia = {
+        "x": int(regiao["x"]),
+        "y": int(regiao["y"]),
+        "width": int(regiao["width"]),
+        "height": int(regiao["height"]),
+    }
+    for chave in ("score", "logo_score", "close_score", "light_ratio", "origem"):
+        if chave in regiao:
+            copia[chave] = regiao.get(chave)
+    return copia
+
+
+def salvar_cache_painel_rewards(config, regiao):
+    painel = copiar_regiao_painel(regiao)
+    if painel is not None:
+        obter_cache_execucao(config)["painel_rewards"] = painel
+    return painel
+
+
+def obter_cache_painel_rewards(config):
+    return copiar_regiao_painel(obter_cache_execucao(config).get("painel_rewards"))
 
 
 def mouse_dentro_da_margem(atual_x, atual_y, alvo_x, alvo_y, margem):
@@ -1160,14 +1199,18 @@ def detectar_estado_rewards_atual(config, status_callback=None, stop_event=None)
 
     x_exibir = y_exibir = None
     if listar_templates_alvo_visual(config, "exibir_painel"):
-        x_exibir, y_exibir, _cache = obter_coordenada_alvo_visual(
+        x_exibir, y_exibir, _alvo = detectar_alvo_visual_visivel_e_cachear(
             config,
             "exibir_painel",
             status_callback=status_callback,
             stop_event=stop_event,
         )
 
-    painel = obter_regiao_painel_rewards(config, status_callback)
+    painel = obter_regiao_painel_rewards(
+        config,
+        status_callback,
+        permitir_cache_sem_deteccao=False,
+    )
 
     if x_exibir is not None and y_exibir is not None:
         estado = {
@@ -1186,8 +1229,8 @@ def detectar_estado_rewards_atual(config, status_callback=None, stop_event=None)
         }
     elif painel is not None:
         estado = {
-            "estado": "popup_rewards_inutilizavel",
-            "ok": False,
+            "estado": "popup_rewards_ok_sem_exibir_painel",
+            "ok": True,
             "titulo": titulo,
             "painel": painel,
         }
@@ -1534,12 +1577,7 @@ def clicar_alvo_visual(
 
         x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
         y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
-        cache_alvos[nome] = {
-            "x": x,
-            "y": y,
-            "score": float(alvo.get("score", 0)),
-            "template": alvo.get("template"),
-        }
+        salvar_cache_alvo_visual(config, nome, x, y, alvo)
         avisar(
             status_callback,
             f"Coordenada do alvo visual '{nome}' salva no cache desta execucao.",
@@ -1588,13 +1626,32 @@ def obter_coordenada_alvo_visual(
 
     x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
     y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
-    cache_alvos[nome] = {
-        "x": x,
-        "y": y,
-        "score": float(alvo.get("score", 0)),
-        "template": alvo.get("template"),
-    }
+    salvar_cache_alvo_visual(config, nome, x, y, alvo)
     return x, y, False
+
+
+def detectar_alvo_visual_visivel_e_cachear(
+    config,
+    nome,
+    status_callback=None,
+    regiao=None,
+    stop_event=None,
+):
+    alvo_config = obter_config_alvo_visual(config, nome)
+    alvo = localizar_alvo_visual(
+        config,
+        nome,
+        status_callback=status_callback,
+        regiao=regiao,
+        stop_event=stop_event,
+    )
+    if alvo is None:
+        return None, None, None
+
+    x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
+    y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
+    salvar_cache_alvo_visual(config, nome, x, y, alvo)
+    return x, y, alvo
 
 
 def abrir_extensao_rewards(
@@ -1649,6 +1706,74 @@ def voltar_card_rewards(
         status_callback=status_callback,
         safety_callback=safety_callback,
     )
+
+
+def garantir_painel_rewards_visivel(
+    config,
+    coordenadas,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
+    if deve_parar(stop_event):
+        return False
+
+    if listar_templates_alvo_visual(config, "exibir_painel"):
+        x_exibir, y_exibir, _alvo = detectar_alvo_visual_visivel_e_cachear(
+            config,
+            "exibir_painel",
+            status_callback=status_callback,
+            stop_event=stop_event,
+        )
+        if x_exibir is not None and y_exibir is not None:
+            avisar(status_callback, "Painel Rewards ainda esta visivel depois do card.")
+            obter_regiao_painel_rewards(config, status_callback)
+            return True
+
+    painel_atual = obter_regiao_painel_rewards(
+        config,
+        status_callback,
+        permitir_cache_sem_deteccao=False,
+    )
+    if painel_atual is not None:
+        avisar(
+            status_callback,
+            "Painel Rewards confirmado pelo detector automatico depois do card.",
+        )
+        return True
+
+    avisar(
+        status_callback,
+        "Painel Rewards nao esta visivel depois de voltar do card. Reabrindo a extensao.",
+        "orange",
+    )
+    if not abrir_extensao_rewards(
+        config,
+        coordenadas,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    ):
+        return False
+
+    if not esperar_intervalo(config, "apos_icone_extensao", stop_event, status_callback):
+        return False
+
+    estado = detectar_estado_rewards_atual(
+        config,
+        status_callback=status_callback,
+        stop_event=stop_event,
+    )
+    if estado.get("ok") and str(estado.get("estado", "")).startswith("popup_rewards_ok"):
+        avisar(status_callback, "Painel Rewards reaberto com sucesso.", "green")
+        return True
+
+    avisar(
+        status_callback,
+        f"Nao consegui confirmar o painel Rewards apos reabrir: {estado.get('estado')}.",
+        "red",
+    )
+    return False
 
 
 def alvo_ja_clicado(alvo, alvos_clicados, margem=45):
@@ -2133,6 +2258,44 @@ def ponto_dentro_regiao(x, y, regiao, margem=0):
     )
 
 
+def calcular_sobreposicao_regioes(a, b):
+    if a is None or b is None:
+        return 0.0
+
+    left = max(int(a["x"]), int(b["x"]))
+    top = max(int(a["y"]), int(b["y"]))
+    right = min(int(a["x"] + a["width"]), int(b["x"] + b["width"]))
+    bottom = min(int(a["y"] + a["height"]), int(b["y"] + b["height"]))
+    if right <= left or bottom <= top:
+        return 0.0
+
+    intersecao = (right - left) * (bottom - top)
+    area_a = int(a["width"]) * int(a["height"])
+    area_b = int(b["width"]) * int(b["height"])
+    menor_area = max(1, min(area_a, area_b))
+    return intersecao / menor_area
+
+
+def regioes_painel_compativeis(referencia, candidato):
+    if referencia is None or candidato is None:
+        return True
+
+    sobreposicao = calcular_sobreposicao_regioes(referencia, candidato)
+    if sobreposicao >= 0.45:
+        return True
+
+    centro_ref_x = int(referencia["x"]) + int(referencia["width"]) // 2
+    centro_ref_y = int(referencia["y"]) + int(referencia["height"]) // 2
+    centro_cand_x = int(candidato["x"]) + int(candidato["width"]) // 2
+    centro_cand_y = int(candidato["y"]) + int(candidato["height"]) // 2
+    margem_x = max(140, min(int(referencia["width"]), int(candidato["width"])) // 2)
+    margem_y = max(180, min(int(referencia["height"]), int(candidato["height"])) // 2)
+    return (
+        abs(centro_ref_x - centro_cand_x) <= margem_x
+        and abs(centro_ref_y - centro_cand_y) <= margem_y
+    )
+
+
 def obter_anchor_exibir_painel(config):
     cache = obter_cache_execucao(config).get("alvos_visuais", {})
     alvo = cache.get("exibir_painel")
@@ -2314,10 +2477,25 @@ def detectar_painel_atual(config, status_callback=None):
     return regiao
 
 
-def obter_regiao_painel_rewards(config, status_callback=None):
+def obter_regiao_painel_rewards(config, status_callback=None, permitir_cache_sem_deteccao=True):
     anchor = obter_anchor_exibir_painel(config)
+    painel_cache = obter_cache_painel_rewards(config)
     painel = detectar_painel_atual(config, status_callback)
     if painel is not None:
+        if painel_cache is not None and not regioes_painel_compativeis(painel_cache, painel):
+            avisar(
+                status_callback,
+                "Painel detectado automaticamente mudou para uma regiao distante. "
+                f"Detectado=({painel['x']},{painel['y']},{painel['width']},{painel['height']}), "
+                f"cache=({painel_cache['x']},{painel_cache['y']},{painel_cache['width']},{painel_cache['height']}). "
+                "Vou ignorar esse salto para evitar scroll fora do Rewards.",
+                "orange",
+            )
+            painel_anchor = derivar_regiao_painel_por_exibir_painel(config, status_callback)
+            if painel_anchor is not None:
+                return salvar_cache_painel_rewards(config, painel_anchor)
+            return painel_cache if permitir_cache_sem_deteccao else None
+
         if anchor is not None and not ponto_dentro_regiao(anchor[0], anchor[1], painel, margem=80):
             avisar(
                 status_callback,
@@ -2328,14 +2506,22 @@ def obter_regiao_painel_rewards(config, status_callback=None):
             )
             painel_anchor = derivar_regiao_painel_por_exibir_painel(config, status_callback)
             if painel_anchor is not None:
-                return painel_anchor
+                return salvar_cache_painel_rewards(config, painel_anchor)
             return None
 
-        return painel
+        return salvar_cache_painel_rewards(config, painel)
 
     painel_anchor = derivar_regiao_painel_por_exibir_painel(config, status_callback)
     if painel_anchor is not None:
-        return painel_anchor
+        return salvar_cache_painel_rewards(config, painel_anchor)
+
+    if painel_cache is not None and permitir_cache_sem_deteccao:
+        avisar(
+            status_callback,
+            "Detector automatico nao encontrou painel agora. Mantendo ultima regiao Rewards confiavel em cache.",
+            "orange",
+        )
+        return painel_cache
 
     return None
 
@@ -2900,8 +3086,16 @@ def executar_cards_por_imagem(
             ):
                 return False
 
-            limpar_cache_execucao(config)
-            avisar(status_callback, "Cache visual limpo depois de voltar do card.")
+            if not garantir_painel_rewards_visivel(
+                config,
+                coordenadas,
+                stop_event=stop_event,
+                status_callback=status_callback,
+                safety_callback=safety_callback,
+            ):
+                return False
+
+            avisar(status_callback, "Painel Rewards confirmado depois de voltar do card.")
             conferindo_apos_card = True
             continue
 

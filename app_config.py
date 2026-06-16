@@ -251,6 +251,11 @@ DEFAULT_CONFIG = {
         "segundos": 0,
         "desligar_delay_segundos": 30,
     },
+    "agendamento_automatico": {
+        "horario": "06:00",
+        "desligar_ao_finalizar": True,
+        "task_name": "AI Rewards Automacao",
+    },
 }
 
 VISUAL_TARGET_LABELS = {

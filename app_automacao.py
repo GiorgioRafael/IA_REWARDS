@@ -1,13 +1,17 @@
 import copy
 import ctypes
+import argparse
+import base64
 import json
 import random
 import subprocess
 import threading
 import time
+import sys
 import uuid
 import winsound
 from ctypes import wintypes
+from pathlib import Path
 
 
 def ativar_dpi_awareness():
@@ -65,6 +69,8 @@ from edge_session_mixin import EdgeSessionMixin
 from execucao_logger import ExecucaoLogger
 from training_detection_mixin import TrainingDetectionMixin
 
+AUTO_TASK_DEFAULT_NAME = "AI Rewards Automacao"
+
 
 def focar_janela_por_titulo(parte_titulo):
     try:
@@ -106,8 +112,15 @@ def focar_janela_por_titulo(parte_titulo):
         return None
 
 class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
-    def __init__(self, root):
+    def __init__(self, root, cli_args=None):
         self.root = root
+        self.cli_args = cli_args or argparse.Namespace(
+            auto_run=False,
+            shutdown_on_success=False,
+            scheduled_run=False,
+            minimized=False,
+            hide_ui=False,
+        )
         self.root.title("AI Rewards Automacao")
         self.root.geometry("760x520")
         self.root.resizable(False, False)
@@ -135,6 +148,11 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
 
         self.setup_ui()
         self.start_keyboard_listener()
+
+        if self.cli_args.auto_run:
+            if self.cli_args.minimized or self.cli_args.hide_ui:
+                self.root.withdraw()
+            self.root.after(1000, self.start_auto_run_from_cli)
 
     def carregar_config(self):
         if not CONFIG_FILE.exists():
@@ -168,11 +186,13 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         self.notebook.pack(fill="both", expand=True)
 
         self.exec_tab = ttk.Frame(self.notebook, padding="10")
+        self.agendamento_tab = ttk.Frame(self.notebook, padding="10")
         self.config_tab = ttk.Frame(self.notebook, padding="10")
         self.treino_tab = ttk.Frame(self.notebook, padding="10")
         self.debug_tab = ttk.Frame(self.notebook, padding="10")
 
         self.notebook.add(self.exec_tab, text="Execução")
+        self.notebook.add(self.agendamento_tab, text="Agendamento automatico")
         self.notebook.add(self.config_tab, text="Configurações")
         self.notebook.add(self.treino_tab, text="Treinos e testes")
         self.notebook.add(self.debug_tab, text="Debug")
@@ -257,6 +277,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         edge_tempo = self.config.get("edge_tempo", {})
         brotato = self.config.get("brotato", {})
         timer_automatico = self.config.get("timer_automatico", {})
+        agendamento = self.config.get("agendamento_automatico", {})
 
         self.searches_var = tk.StringVar(value=str(pesquisas["search_count"]))
         self.desktop_x_var = tk.StringVar(value=str(pesquisas["desktop_coords"]["x"]))
@@ -333,6 +354,14 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         self.timer_segundos_var = tk.StringVar(
             value=str(timer_automatico.get("segundos", 0))
         )
+        self.agendamento_horario_var = tk.StringVar(
+            value=str(agendamento.get("horario", "06:00"))
+        )
+        self.agendamento_desligar_var = tk.BooleanVar(
+            value=agendamento.get("desligar_ao_finalizar", True)
+        )
+        self.agendamento_comando_var = tk.StringVar(value=self.descrever_comando_agendamento())
+        self.agendamento_status_var = tk.StringVar(value="Verificando tarefa...")
         dashboard = self.config.get("dashboard", {})
         leitura_pontos = dashboard.get("leitura_pontos", {})
         firebase_dashboard = dashboard.get("firebase", {})
@@ -421,6 +450,8 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             text="Mostrar CMD de debug em tempo real",
             variable=self.abrir_cmd_debug_var,
         ).pack(anchor="w", padx=5, pady=5)
+
+        self.setup_agendamento_tab()
 
         dashboard_frame = ttk.LabelFrame(
             self.dashboard_tab, text="Dashboard > Firestore/API", padding="10"
@@ -807,6 +838,92 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             state="disabled",
         )
         self.cancel_button.grid(row=1, column=2, padx=5, pady=(8, 0), sticky="ew")
+
+    def setup_agendamento_tab(self):
+        agendamento_frame = ttk.LabelFrame(
+            self.agendamento_tab, text="Agendamento automatico > Windows", padding="10"
+        )
+        agendamento_frame.pack(fill="x", pady=(0, 10))
+        agendamento_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(agendamento_frame, text="Horario diario:").grid(
+            row=0, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(
+            agendamento_frame,
+            textvariable=self.agendamento_horario_var,
+            width=10,
+        ).grid(row=0, column=1, sticky="w", padx=5, pady=5)
+        ttk.Label(agendamento_frame, text="formato 24h, exemplo 06:00").grid(
+            row=0, column=2, sticky="w", padx=5, pady=5
+        )
+
+        ttk.Checkbutton(
+            agendamento_frame,
+            text="Desligar o computador ao finalizar com sucesso",
+            variable=self.agendamento_desligar_var,
+        ).grid(row=1, column=0, columnspan=3, sticky="w", padx=5, pady=5)
+
+        ttk.Label(agendamento_frame, text="Comando detectado:").grid(
+            row=2, column=0, sticky="nw", padx=5, pady=5
+        )
+        ttk.Label(
+            agendamento_frame,
+            textvariable=self.agendamento_comando_var,
+            wraplength=560,
+            foreground="gray",
+        ).grid(row=2, column=1, columnspan=2, sticky="ew", padx=5, pady=5)
+
+        botoes_frame = ttk.Frame(agendamento_frame)
+        botoes_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=5, pady=(8, 5))
+        botoes_frame.columnconfigure(0, weight=1)
+        botoes_frame.columnconfigure(1, weight=1)
+        botoes_frame.columnconfigure(2, weight=1)
+
+        self.install_schedule_button = ttk.Button(
+            botoes_frame,
+            text="Instalar/Atualizar agendamento",
+            command=self.instalar_agendamento_windows,
+        )
+        self.install_schedule_button.grid(row=0, column=0, padx=4, sticky="ew")
+
+        self.remove_schedule_button = ttk.Button(
+            botoes_frame,
+            text="Remover agendamento",
+            command=self.remover_agendamento_windows,
+        )
+        self.remove_schedule_button.grid(row=0, column=1, padx=4, sticky="ew")
+
+        self.test_schedule_button = ttk.Button(
+            botoes_frame,
+            text="Testar execucao automatica agora",
+            command=self.testar_execucao_automatica_agendada,
+        )
+        self.test_schedule_button.grid(row=0, column=2, padx=4, sticky="ew")
+
+        status_frame = ttk.LabelFrame(
+            self.agendamento_tab, text="Agendamento automatico > Status", padding="10"
+        )
+        status_frame.pack(fill="x", pady=(0, 10))
+        ttk.Label(
+            status_frame,
+            textvariable=self.agendamento_status_var,
+            foreground="blue",
+            wraplength=680,
+        ).pack(anchor="w", padx=5, pady=5)
+
+        ttk.Label(
+            self.agendamento_tab,
+            text=(
+                "Para desligado real, configure Power On By RTC/Wake By Alarm na BIOS/UEFI "
+                "alguns minutos antes desse horario. Para suspensao/hibernacao, o Agendador "
+                "do Windows pode acordar o PC. Auto-login deve ser configurado fora do app."
+            ),
+            foreground="gray",
+            wraplength=690,
+        ).pack(anchor="w", padx=5, pady=(4, 0))
+
+        self.root.after(500, self.atualizar_status_agendamento)
 
     def setup_conjunto_tab(self):
         self.app_busca_var = tk.StringVar(value=str(self.config["app_busca"]))
@@ -1510,6 +1627,15 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             )
             timer_automatico.setdefault("desligar_delay_segundos", 30)
 
+            agendamento = self.config.setdefault("agendamento_automatico", {})
+            agendamento["horario"] = self.normalizar_horario_agendamento(
+                self.agendamento_horario_var.get()
+            )
+            agendamento["desligar_ao_finalizar"] = self.agendamento_desligar_var.get()
+            agendamento.setdefault("task_name", AUTO_TASK_DEFAULT_NAME)
+            self.agendamento_horario_var.set(agendamento["horario"])
+            self.agendamento_comando_var.set(self.descrever_comando_agendamento())
+
             self.salvar_json(self.config)
             self.update_status("Configuracoes salvas com sucesso.", "green")
             return True
@@ -1687,6 +1813,9 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             self.start_button.config(state=principal_state)
             self.timer_button.config(state=principal_state)
             self.conjunto_button.config(state=principal_state)
+            self.install_schedule_button.config(state=principal_state)
+            self.remove_schedule_button.config(state=principal_state)
+            self.test_schedule_button.config(state=principal_state)
             self.pause_button.config(state=pause_state)
             self.resume_button.config(state=resume_state)
             self.cancel_button.config(state=cancel_state)
@@ -1801,6 +1930,181 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         )
         return False
 
+    def normalizar_horario_agendamento(self, valor):
+        texto = (valor or "").strip()
+        try:
+            horario = datetime.strptime(texto, "%H:%M")
+        except ValueError as exc:
+            raise ValueError("Horario do agendamento precisa estar no formato HH:MM, exemplo 06:00.") from exc
+
+        return horario.strftime("%H:%M")
+
+    def task_name_agendamento(self):
+        agendamento = self.config.get("agendamento_automatico", {})
+        return agendamento.get("task_name") or AUTO_TASK_DEFAULT_NAME
+
+    def comando_agendamento(self, desligar_ao_finalizar=None):
+        if desligar_ao_finalizar is None:
+            desligar_ao_finalizar = self.agendamento_desligar_var.get()
+
+        args = ["--auto-run", "--scheduled-run"]
+        if desligar_ao_finalizar:
+            args.append("--shutdown-on-success")
+
+        if getattr(sys, "frozen", False):
+            executavel = sys.executable
+            argumentos = args
+            pasta_trabalho = str(Path(sys.executable).resolve().parent)
+        else:
+            executavel = sys.executable
+            argumentos = [str(BASE_DIR / "app_automacao.py"), *args]
+            pasta_trabalho = str(BASE_DIR)
+
+        return executavel, argumentos, pasta_trabalho
+
+    def descrever_comando_agendamento(self):
+        executavel, argumentos, pasta_trabalho = self.comando_agendamento()
+        comando = subprocess.list2cmdline([executavel, *argumentos])
+        return f"{comando}\nPasta: {pasta_trabalho}"
+
+    def powershell_quote(self, valor):
+        return "'" + str(valor).replace("'", "''") + "'"
+
+    def executar_powershell_agendamento(self, script):
+        encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+        return subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-EncodedCommand",
+                encoded,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+
+    def agendamento_instalado(self):
+        resultado = subprocess.run(
+            ["schtasks", "/Query", "/TN", self.task_name_agendamento()],
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        return resultado.returncode == 0
+
+    def atualizar_status_agendamento(self):
+        try:
+            if self.agendamento_instalado():
+                self.agendamento_status_var.set(
+                    f"Tarefa instalada no Windows: {self.task_name_agendamento()}"
+                )
+            else:
+                self.agendamento_status_var.set(
+                    "Nenhum agendamento instalado pelo AI Rewards neste usuario."
+                )
+        except Exception as exc:
+            self.agendamento_status_var.set(f"Nao consegui verificar o agendamento: {exc}")
+
+    def instalar_agendamento_windows(self):
+        if not self.save_config():
+            return
+
+        horario = self.config["agendamento_automatico"]["horario"]
+        task_name = self.task_name_agendamento()
+        executavel, argumentos, pasta_trabalho = self.comando_agendamento(
+            self.config["agendamento_automatico"].get("desligar_ao_finalizar", True)
+        )
+        argumentos_texto = subprocess.list2cmdline(argumentos)
+
+        script = f"""
+$ErrorActionPreference = 'Stop'
+$taskName = {self.powershell_quote(task_name)}
+$execute = {self.powershell_quote(executavel)}
+$argument = {self.powershell_quote(argumentos_texto)}
+$workingDirectory = {self.powershell_quote(pasta_trabalho)}
+$at = [datetime]::ParseExact({self.powershell_quote(horario)}, 'HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
+$action = New-ScheduledTaskAction -Execute $execute -Argument $argument -WorkingDirectory $workingDirectory
+$trigger = New-ScheduledTaskTrigger -Daily -At $at
+$settings = New-ScheduledTaskSettingsSet -WakeToRun -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 6)
+$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description 'AI Rewards: execucao automatica diaria.' -Force | Out-Null
+"""
+        try:
+            resultado = self.executar_powershell_agendamento(script)
+        except Exception as exc:
+            messagebox.showerror(
+                "Erro no agendamento",
+                f"Nao consegui instalar o agendamento: {exc}",
+                parent=self.root,
+            )
+            return
+
+        if resultado.returncode != 0:
+            mensagem = (resultado.stderr or resultado.stdout or "").strip()
+            messagebox.showerror(
+                "Erro no agendamento",
+                f"O Windows nao aceitou o agendamento.\n\n{mensagem}",
+                parent=self.root,
+            )
+            self.atualizar_status_agendamento()
+            return
+
+        self.update_status("Agendamento instalado/atualizado com sucesso.", "green")
+        self.atualizar_status_agendamento()
+        messagebox.showinfo(
+            "Agendamento instalado",
+            "A tarefa diaria foi criada no Windows.\n\n"
+            "Para PC suspenso/hibernando, o Windows pode acordar pela tarefa.\n"
+            "Para PC desligado real, configure Power On By RTC/Wake By Alarm na BIOS/UEFI.",
+            parent=self.root,
+        )
+
+    def remover_agendamento_windows(self):
+        task_name = self.task_name_agendamento()
+        resultado = subprocess.run(
+            ["schtasks", "/Delete", "/TN", task_name, "/F"],
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+
+        if resultado.returncode != 0 and self.agendamento_instalado():
+            mensagem = (resultado.stderr or resultado.stdout or "").strip()
+            messagebox.showerror(
+                "Erro ao remover",
+                f"Nao consegui remover o agendamento.\n\n{mensagem}",
+                parent=self.root,
+            )
+            return
+
+        self.update_status("Agendamento removido.", "green")
+        self.atualizar_status_agendamento()
+
+    def testar_execucao_automatica_agendada(self):
+        if not self.save_config():
+            return
+
+        if self.agendamento_desligar_var.get():
+            continuar = messagebox.askokcancel(
+                "Teste sem desligamento",
+                "O teste vai iniciar o mesmo fluxo selecionado agora, mas nao vai desligar o PC.\n\n"
+                "O desligamento automatico fica reservado para a tarefa diaria instalada.",
+                parent=self.root,
+            )
+            if not continuar:
+                return
+
+        self.start_auto_run(
+            shutdown_on_success=False,
+            scheduled_run=True,
+            origem="Teste do agendamento",
+        )
+
     def start_fluxo_completo_thread(self):
         if not self.save_config():
             return
@@ -1836,6 +2140,77 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         self.status_com_log("Iniciando fluxo selecionado...")
         thread = threading.Thread(target=self.fluxo_completo, daemon=True)
         thread.start()
+
+    def start_auto_run_from_cli(self):
+        self.start_auto_run(
+            shutdown_on_success=bool(self.cli_args.shutdown_on_success),
+            scheduled_run=bool(self.cli_args.scheduled_run),
+            origem="Execucao agendada" if self.cli_args.scheduled_run else "Execucao automatica",
+        )
+
+    def start_auto_run(self, shutdown_on_success=False, scheduled_run=False, origem="Execucao automatica"):
+        if self.automation_running:
+            return
+
+        if not self.fluxo_selecionado_existe():
+            self.exec_logger.iniciar(
+                origem,
+                abrir_cmd=self.config.get("debug", {}).get("abrir_cmd", True),
+            )
+            self.iniciar_resumo_execucao()
+            self.iniciar_run_id()
+            self.marcar_etapa(origem, "cancelado", "Nenhuma funcao primaria selecionada.")
+            self.escrever_relatorio_final()
+            self.update_status("Execucao automatica cancelada: nenhuma funcao selecionada.", "orange")
+            return
+
+        self.exec_logger.iniciar(
+            origem,
+            abrir_cmd=self.config.get("debug", {}).get("abrir_cmd", True),
+        )
+        self.iniciar_resumo_execucao()
+        self.iniciar_run_id()
+        limpar_cache_execucao(self.config)
+        self.stop_automation.clear()
+        self.pause_automation.clear()
+        self.stop_automation.pause_event = self.pause_automation
+        self.timer_automatico_aguardando = False
+        self.set_running(True)
+        self.status_com_log(
+            f"{origem} iniciada. Desligar ao finalizar: {'sim' if shutdown_on_success else 'nao'}."
+        )
+
+        thread = threading.Thread(
+            target=self.fluxo_auto_run,
+            args=(shutdown_on_success, scheduled_run, origem),
+            daemon=True,
+        )
+        thread.start()
+
+    def fluxo_auto_run(self, shutdown_on_success, scheduled_run, origem):
+        try:
+            if scheduled_run:
+                self.marcar_etapa("Agendamento automatico", "em execucao", origem)
+
+            concluido = self.fluxo_completo()
+            if concluido and shutdown_on_success and not self.stop_automation.is_set():
+                self.desligar_computador()
+            elif concluido:
+                self.status_com_log("Execucao automatica concluida sem desligamento.", "green")
+            else:
+                self.marcar_etapa(
+                    "Desligamento",
+                    "cancelado",
+                    "Fluxo automatico nao foi concluido com sucesso.",
+                )
+                self.status_com_log(
+                    "Execucao automatica falhou ou foi interrompida. O computador nao sera desligado.",
+                    "orange",
+                )
+        except Exception as exc:
+            self.marcar_etapa("Execucao automatica", "erro", str(exc))
+            self.capturar_screenshot_falha("execucao_automatica", str(exc))
+            self.status_com_log(f"Erro na execucao automatica: {exc}", "red")
 
     def total_segundos_timer_automatico(self):
         timer_automatico = self.config.get("timer_automatico", {})
@@ -2707,7 +3082,12 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
 
         limpar_cache_execucao(self.config)
         estado = self.detectar_estado_rewards()
-        if estado.get("estado") not in {"pagina_rewards_completa", "popup_rewards_ok", "edge_normal"}:
+        if estado.get("estado") not in {
+            "pagina_rewards_completa",
+            "popup_rewards_ok",
+            "popup_rewards_ok_sem_exibir_painel",
+            "edge_normal",
+        }:
             self.status_com_log(
                 f"Fallback Rewards em estado inesperado: {estado.get('estado')}.",
                 "orange",
@@ -2809,7 +3189,38 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         listener.start()
 
 
+def parse_cli_args():
+    parser = argparse.ArgumentParser(description="AI Rewards Automacao")
+    parser.add_argument(
+        "--auto-run",
+        action="store_true",
+        help="Inicia automaticamente o fluxo selecionado salvo no config.json.",
+    )
+    parser.add_argument(
+        "--shutdown-on-success",
+        action="store_true",
+        help="Desliga o computador se o fluxo automatico terminar com sucesso.",
+    )
+    parser.add_argument(
+        "--scheduled-run",
+        action="store_true",
+        help="Marca a execucao como originada pelo Agendador do Windows.",
+    )
+    parser.add_argument(
+        "--minimized",
+        action="store_true",
+        help="Inicia com a janela principal escondida.",
+    )
+    parser.add_argument(
+        "--hide-ui",
+        action="store_true",
+        help="Alias de --minimized para execucoes automaticas.",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    args = parse_cli_args()
     root = tk.Tk()
-    app = AutoRewardsApp(root)
+    app = AutoRewardsApp(root, args)
     root.mainloop()

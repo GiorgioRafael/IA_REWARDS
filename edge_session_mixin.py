@@ -187,11 +187,19 @@ class EdgeSessionMixin:
                 return None
 
             estado = self.detectar_estado_rewards()
-            if estado.get("estado") == "popup_rewards_ok":
-                anchor = estado.get("anchor_exibir_painel") or {}
-                return int(anchor["x"]), int(anchor["y"])
-
             estado_nome = estado.get("estado", "desconhecido")
+            if estado.get("ok") and estado_nome.startswith("popup_rewards_ok"):
+                anchor = estado.get("anchor_exibir_painel") or {}
+                if "x" in anchor and "y" in anchor:
+                    return int(anchor["x"]), int(anchor["y"])
+
+                painel = estado.get("painel") or {}
+                if {"x", "y", "width", "height"}.issubset(painel):
+                    return (
+                        int(painel["x"] + painel["width"] // 2),
+                        int(painel["y"] + min(260, max(120, painel["height"] // 4))),
+                    )
+
             if estado_nome in {"popup_rewards_inutilizavel", "pagina_rewards_completa", "desconhecido"}:
                 self.status_com_log(
                     f"Painel Rewards nao esta utilizavel ({estado_nome}).",
