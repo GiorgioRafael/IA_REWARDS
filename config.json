@@ -314,7 +314,7 @@
     },
     "search_count": 23,
     "executar_conjunto_diario": true,
-    "executar_pesquisas": true,
+    "executar_pesquisas": false,
     "usar_ctrl_l_desktop": true,
     "delay_apos_conjunto_diario": {
       "min": 2.0,
@@ -330,7 +330,7 @@
     }
   },
   "edge_tempo": {
-    "executar": true,
+    "executar": false,
     "url_video": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
     "primeira_espera_minutos": 36.0,
     "margem_extra_minutos": 1.0,
@@ -339,7 +339,7 @@
     "delay_apos_reabrir_edge": 2.0
   },
   "brotato": {
-    "executar": true,
+    "executar": false,
     "app_busca": "Brotato",
     "tempo_minutos": 17.0,
     "delay_apos_enter": 25.0,
