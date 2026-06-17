@@ -1,4 +1,7 @@
 /assets/**
 /logs/
+/build/
+/dist/
 __pycache__/
 *.py[cod]
+*.spec
