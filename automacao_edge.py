@@ -755,6 +755,10 @@ def obter_config_seguranca(config):
             "ativada": True,
             "margem_pixels": 35,
             "reabrir_extensao_ao_continuar": True,
+            "auto_reposicionar_primeiro": True,
+            "tempo_observacao_apos_reposicionar": 0.35,
+            "intervalo_observacao_mouse": 0.05,
+            "pausar_se_mover_durante_scroll": True,
         },
     )
 
@@ -823,32 +827,52 @@ def mouse_dentro_da_margem(atual_x, atual_y, alvo_x, alvo_y, margem):
     return abs(atual_x - alvo_x) <= margem and abs(atual_y - alvo_y) <= margem
 
 
-def garantir_mouse_no_alvo(
+def observar_mouse_estavel_no_alvo(config, x, y, margem, stop_event=None):
+    seguranca = obter_config_seguranca(config)
+    tempo_observacao = max(
+        0.0,
+        float(seguranca.get("tempo_observacao_apos_reposicionar", 0.35)),
+    )
+    intervalo = max(0.01, float(seguranca.get("intervalo_observacao_mouse", 0.05)))
+    limite = time.monotonic() + tempo_observacao
+
+    while True:
+        if deve_parar(stop_event):
+            return False, get_mouse_position()
+
+        atual_x, atual_y = get_mouse_position()
+        if not mouse_dentro_da_margem(atual_x, atual_y, int(x), int(y), margem):
+            return False, (atual_x, atual_y)
+
+        restante = limite - time.monotonic()
+        if restante <= 0:
+            return True, (atual_x, atual_y)
+
+        if not dormir(min(intervalo, restante), stop_event):
+            return False, get_mouse_position()
+
+
+def pausar_por_intervencao_mouse(
     config,
     nome,
     x,
     y,
+    atual_x,
+    atual_y,
+    margem,
     stop_event=None,
     status_callback=None,
     safety_callback=None,
     estado=None,
     recuperar_callback=None,
+    mensagem=None,
 ):
     if deve_parar(stop_event):
         return False
 
-    seguranca = obter_config_seguranca(config)
-    if not seguranca.get("ativada", True) or safety_callback is None:
-        return True
-
-    margem = int(seguranca.get("margem_pixels", 35))
-    atual_x, atual_y = get_mouse_position()
-    if mouse_dentro_da_margem(atual_x, atual_y, int(x), int(y), margem):
-        return True
-
     avisar(
         status_callback,
-        "Mouse saiu da area esperada. Pausando para confirmacao do usuario.",
+        mensagem or "Mouse saiu da area esperada. Pausando para confirmacao do usuario.",
         "orange",
     )
     evento = {
@@ -873,6 +897,79 @@ def garantir_mouse_no_alvo(
 
     mover_mouse(x, y)
     return dormir(config["tempos"]["movimento_mouse"], stop_event)
+
+
+def garantir_mouse_no_alvo(
+    config,
+    nome,
+    x,
+    y,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+    estado=None,
+    recuperar_callback=None,
+    permitir_reposicionamento=True,
+    mensagem_pausa=None,
+):
+    if deve_parar(stop_event):
+        return False
+
+    seguranca = obter_config_seguranca(config)
+    if not seguranca.get("ativada", True) or safety_callback is None:
+        return True
+
+    margem = int(seguranca.get("margem_pixels", 35))
+    atual_x, atual_y = get_mouse_position()
+    if mouse_dentro_da_margem(atual_x, atual_y, int(x), int(y), margem):
+        return True
+
+    if permitir_reposicionamento and seguranca.get("auto_reposicionar_primeiro", True):
+        avisar(
+            status_callback,
+            "Mouse fora da margem; reposicionando automaticamente.",
+            "orange",
+        )
+        mover_mouse(x, y)
+        if not dormir(config["tempos"]["movimento_mouse"], stop_event):
+            return False
+
+        estabilizado, atual = observar_mouse_estavel_no_alvo(
+            config,
+            x,
+            y,
+            margem,
+            stop_event,
+        )
+        if estabilizado:
+            avisar(status_callback, "Mouse estabilizado apos reposicionamento.")
+            return True
+
+        if deve_parar(stop_event):
+            return False
+
+        atual_x, atual_y = atual
+        avisar(
+            status_callback,
+            "Mouse saiu novamente apos reposicionamento; pausando.",
+            "orange",
+        )
+
+    return pausar_por_intervencao_mouse(
+        config,
+        nome,
+        x,
+        y,
+        atual_x,
+        atual_y,
+        margem,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+        estado=estado,
+        recuperar_callback=recuperar_callback,
+        mensagem=mensagem_pausa,
+    )
 
 
 def listar_templates_plus_10(config):
@@ -2941,6 +3038,21 @@ def rolar_area_extensao(
             return {"ok": False, "fim_scroll": False, "mudou": False, "diferenca": None}
         if estado is not None:
             estado["ticks_parciais"] = indice
+        if obter_config_seguranca(config).get("pausar_se_mover_durante_scroll", True):
+            if not garantir_mouse_no_alvo(
+                config,
+                "area_scroll",
+                x,
+                y,
+                stop_event=stop_event,
+                status_callback=status_callback,
+                safety_callback=safety_callback,
+                estado=estado,
+                recuperar_callback=recuperar_callback,
+                permitir_reposicionamento=False,
+                mensagem_pausa="Mouse saiu durante scroll; pausando com estado parcial.",
+            ):
+                return {"ok": False, "fim_scroll": False, "mudou": False, "diferenca": None}
 
     if not dormir(0.45, stop_event):
         return {"ok": False, "fim_scroll": False, "mudou": False, "diferenca": None}
@@ -2972,6 +3084,7 @@ def rolar_area_extensao(
         "mudou": mudou,
         "diferenca": diferenca,
         "modo_detector": modo_detector,
+        "regiao_detector": regiao_detector,
     }
 
 
@@ -3026,6 +3139,7 @@ def executar_cards_por_imagem(
         return False
 
     fim_scroll_detectado = False
+    fim_scroll_confirmacoes = 0
     conferindo_apos_card = False
     while True:
         if deve_parar(stop_event):
@@ -3143,6 +3257,11 @@ def executar_cards_por_imagem(
             alvos_clicados = []
         estado_scroll["ticks_parciais"] = 0
         fim_scroll_detectado = bool(resultado_scroll.get("fim_scroll"))
+        if fim_scroll_detectado:
+            fim_scroll_confirmacoes += 1
+        else:
+            fim_scroll_confirmacoes = 0
+
         if (
             fim_scroll_detectado
             and resultado_scroll.get("modo_detector") == "visual_painel"
@@ -3154,6 +3273,26 @@ def executar_cards_por_imagem(
                 "orange",
             )
             fim_scroll_detectado = False
+        if fim_scroll_detectado and resultado_scroll.get("modo_detector") == "scrollbar":
+            min_scrolls_barra = int(deteccao.get("scrollbar_min_scrolls_before_end", 2))
+            confirmacoes_barra = max(1, int(deteccao.get("scrollbar_end_confirmations", 1)))
+            if scrolls < min_scrolls_barra or fim_scroll_confirmacoes < confirmacoes_barra:
+                regiao_detector = resultado_scroll.get("regiao_detector") or {}
+                detalhe_regiao = ""
+                if regiao_detector:
+                    detalhe_regiao = (
+                        " Regiao usada: "
+                        f"x={regiao_detector.get('x')}, y={regiao_detector.get('y')}, "
+                        f"w={regiao_detector.get('width')}, h={regiao_detector.get('height')}."
+                    )
+                avisar(
+                    status_callback,
+                    "Detector da barra indicou fim cedo demais. "
+                    "Vou confirmar com mais scroll antes de encerrar."
+                    + detalhe_regiao,
+                    "orange",
+                )
+                fim_scroll_detectado = False
 
     if cards_executados == 0:
         avisar(status_callback, "Nenhum card com +10/+5 encontrado. Seguindo sem clicar.", "orange")

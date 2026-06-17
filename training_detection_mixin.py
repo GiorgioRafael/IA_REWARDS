@@ -1,12 +1,13 @@
 import threading
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
 
 from pynput import keyboard
 
-from app_config import BASE_DIR, VISUAL_TARGET_LABELS
+from app_config import BASE_DIR, LOGS_DIR, VISUAL_TARGET_LABELS
 from automacao_edge import (
     abrir_ver_tudo_e_detectar_tracker_edge,
     detectar_estado_tracker_edge,
@@ -19,6 +20,7 @@ from automacao_edge import (
     usar_variacoes_deteccao,
 )
 from deteccao_imagem import (
+    capturar_tela,
     capturar_template_em_coordenada,
     get_mouse_position,
     get_mouse_position_debug,
@@ -89,6 +91,56 @@ class TrainingDetectionMixin:
 
     def nome_alvo_visual(self, nome):
         return VISUAL_TARGET_LABELS.get(nome, nome)
+
+    def salvar_diagnostico_teste_deteccao(self, nome, templates, erro):
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        agora = datetime.now().strftime("%Y%m%d_%H%M%S")
+        caminho = LOGS_DIR / f"diagnostico_deteccao_{nome}_{agora}.txt"
+        alvo_config = self.config.get("alvos_visuais", {}).get(nome, {})
+
+        linhas = [
+            f"Alvo: {nome}",
+            f"BASE_DIR: {BASE_DIR}",
+            f"Treino dir configurado: {alvo_config.get('treino_dir')}",
+            f"Treino dir resolvido: {self.caminho_treino_alvo_visual(nome)}",
+            f"Template principal: {alvo_config.get('template')}",
+            f"Confianca: {alvo_config.get('confianca')}",
+            f"Regiao configurada: {alvo_config.get('regiao')}",
+            f"Erro: {type(erro).__name__}: {erro}",
+            "",
+            f"Templates carregados: {len(templates)}",
+        ]
+
+        for template in templates[:25]:
+            template_path = Path(template)
+            try:
+                tamanho = template_path.stat().st_size
+            except OSError:
+                tamanho = "erro ao ler tamanho"
+            linhas.append(f"- {template_path} | existe={template_path.exists()} | bytes={tamanho}")
+
+        try:
+            imagem, offset_x, offset_y = capturar_tela()
+            linhas.extend(
+                [
+                    "",
+                    "Captura de tela: OK",
+                    f"Tamanho: {imagem.size[0]}x{imagem.size[1]}",
+                    f"Offset: x={offset_x}, y={offset_y}",
+                ]
+            )
+        except Exception as captura_erro:
+            linhas.extend(
+                [
+                    "",
+                    "Captura de tela: FALHOU",
+                    f"Erro captura: {type(captura_erro).__name__}: {captura_erro}",
+                ]
+            )
+
+        linhas.extend(["", "Traceback:", traceback.format_exc()])
+        caminho.write_text("\n".join(linhas), encoding="utf-8")
+        return caminho
 
     def mover_mouse_para_resultado(self, resultado):
         try:
@@ -588,7 +640,14 @@ class TrainingDetectionMixin:
 
     def _testar_deteccao_alvo_visual_worker(self, nome):
         time.sleep(0.7)
-        resultado = {"nome": nome, "erro": None, "detectados": [], "total_templates": 0}
+        templates = []
+        resultado = {
+            "nome": nome,
+            "erro": None,
+            "detectados": [],
+            "total_templates": 0,
+            "diagnostico": None,
+        }
 
         try:
             templates = listar_templates_alvo_visual(self.config, nome)
@@ -603,13 +662,28 @@ class TrainingDetectionMixin:
                 stop_event=self.stop_automation,
             )
             resultado["detectados"] = [] if alvo is None else [alvo]
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            resultado["diagnostico"] = self.salvar_diagnostico_teste_deteccao(
+                nome,
+                templates,
+                exc,
+            )
             resultado["erro"] = (
                 "Template nao encontrado",
-                "Use Iniciar treino para salvar pelo menos uma amostra desse alvo.",
+                "Use Iniciar treino para salvar pelo menos uma amostra desse alvo.\n\n"
+                f"Diagnostico salvo em:\n{resultado['diagnostico']}",
             )
         except Exception as exc:
-            resultado["erro"] = ("Erro", f"Nao foi possivel testar a deteccao: {exc}")
+            resultado["diagnostico"] = self.salvar_diagnostico_teste_deteccao(
+                nome,
+                templates,
+                exc,
+            )
+            resultado["erro"] = (
+                "Erro",
+                f"Nao foi possivel testar a deteccao: {type(exc).__name__}: {exc}\n\n"
+                f"Diagnostico salvo em:\n{resultado['diagnostico']}",
+            )
 
         self.root.after(
             0,
