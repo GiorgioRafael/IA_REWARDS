@@ -1,6 +1,7 @@
 from automacao_edge import (
     abrir_edge,
     abrir_extensao_rewards,
+    aguardar_janela_edge,
     carregar_coordenadas,
     detectar_estado_rewards_atual,
     encontrar_janela_edge,
@@ -81,10 +82,24 @@ class EdgeSessionMixin:
             stop_event=self.stop_automation,
             status_callback=self.status_com_log,
         ):
+            self.edge_session_started = False
             return False
 
         hwnd, titulo = encontrar_janela_edge(self.config, preferir_ativa=True)
         if hwnd is None:
+            self.status_com_log(
+                "Edge abriu, mas a janela ainda nao foi localizada. Vou aguardar mais um pouco.",
+                "orange",
+            )
+            hwnd, titulo = aguardar_janela_edge(
+                self.config,
+                timeout=self.config.get("navegador", {}).get("abrir_timeout_segundos", 30),
+                stop_event=self.stop_automation,
+                status_callback=self.status_com_log,
+            )
+
+        if hwnd is None:
+            self.edge_session_started = False
             self.status_com_log(
                 "Edge foi aberto, mas nao consegui armazenar a janela da sessao.",
                 "red",

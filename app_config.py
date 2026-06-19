@@ -130,6 +130,9 @@ DEFAULT_CONFIG = {
         "forcar_segundo_monitor": False,
         "buscar_titulo_janela": False,
         "titulo_janela": "Microsoft Edge",
+        "abrir_timeout_segundos": 30,
+        "abrir_direto_primeiro": True,
+        "abrir_direto_se_menu_falhar": True,
     },
     "rewards_estado": {
         "permitir_reinicio_edge_erro": True,

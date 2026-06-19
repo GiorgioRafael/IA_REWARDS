@@ -3,6 +3,7 @@ import ctypes
 import json
 import random
 import re
+import subprocess
 import time
 import unicodedata
 from pathlib import Path
@@ -324,6 +325,57 @@ def encontrar_janela_edge(config, preferir_ativa=True):
     return encontrar_janela_por_titulo([titulo_config, "Microsoft Edge"])
 
 
+def aguardar_janela_edge(config, timeout=30, stop_event=None, status_callback=None):
+    limite = time.time() + max(1.0, float(timeout))
+    ultimo_log = 0.0
+
+    while time.time() < limite:
+        if deve_parar(stop_event):
+            return None, None
+
+        hwnd, titulo = encontrar_janela_edge(config, preferir_ativa=True)
+        if hwnd is not None:
+            avisar(
+                status_callback,
+                f"Janela do Edge encontrada: {titulo or 'sem titulo'}.",
+                "green",
+            )
+            return hwnd, titulo
+
+        agora = time.time()
+        if agora - ultimo_log >= 3:
+            restante = max(0, int(limite - agora))
+            avisar(
+                status_callback,
+                f"Aguardando a janela do Edge ficar disponivel ({restante}s restantes)...",
+            )
+            ultimo_log = agora
+
+        time.sleep(0.4)
+
+    return None, None
+
+
+def abrir_edge_direto(status_callback=None):
+    avisar(
+        status_callback,
+        "Abrindo Edge pelo comando direto do Windows.",
+        "orange",
+    )
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        subprocess.Popen(
+            ["cmd", "/c", "start", "", "msedge"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=flags,
+        )
+        return True
+    except Exception as exc:
+        avisar(status_callback, f"Falha ao abrir Edge pelo fallback direto: {exc}", "red")
+        return False
+
+
 def focar_janela_edge(hwnd, config, stop_event=None, status_callback=None):
     if deve_parar(stop_event):
         return False
@@ -604,11 +656,42 @@ def carregar_coordenadas(config):
 def abrir_edge(config, stop_event=None, status_callback=None):
     tempos = config["tempos"]
     app_busca = config["app_busca"]
+    navegador = config.get("navegador", {})
 
     if deve_parar(stop_event):
         return False
 
     limpar_cache_alvos_visuais(config)
+    espera_inicial = max(0.0, float(tempos["apos_enter"]))
+    timeout_total = max(
+        espera_inicial,
+        float(navegador.get("abrir_timeout_segundos", 30)),
+    )
+
+    if navegador.get("abrir_direto_primeiro", True):
+        if not abrir_edge_direto(status_callback):
+            return False
+
+        hwnd, _titulo = aguardar_janela_edge(
+            config,
+            timeout=timeout_total,
+            stop_event=stop_event,
+            status_callback=status_callback,
+        )
+        if hwnd is not None:
+            return forcar_edge_no_segundo_monitor(
+                config,
+                stop_event,
+                status_callback,
+                hwnd_preferido=hwnd,
+            )
+
+        avisar(
+            status_callback,
+            "A abertura direta nao confirmou o Edge. Vou tentar pelo menu iniciar como fallback.",
+            "orange",
+        )
+
     avisar(status_callback, "Pressionando tecla Windows.")
     pyautogui.press("win")
     if not dormir(tempos["apos_windows"], stop_event):
@@ -621,11 +704,53 @@ def abrir_edge(config, stop_event=None, status_callback=None):
 
     avisar(status_callback, "Pressionando Enter para abrir o app.")
     pyautogui.press("enter")
-    avisar(status_callback, f"Aguardando Edge abrir por {tempos['apos_enter']:.2f}s.")
-    if not dormir(tempos["apos_enter"], stop_event):
+    avisar(
+        status_callback,
+        f"Aguardando Edge abrir por ate {timeout_total:.0f}s.",
+    )
+    if espera_inicial > 0 and not dormir(espera_inicial, stop_event):
         return False
 
-    return forcar_edge_no_segundo_monitor(config, stop_event, status_callback)
+    timeout_restante = max(1.0, timeout_total - espera_inicial)
+    hwnd, _titulo = aguardar_janela_edge(
+        config,
+        timeout=timeout_restante,
+        stop_event=stop_event,
+        status_callback=status_callback,
+    )
+
+    if hwnd is None and navegador.get("abrir_direto_se_menu_falhar", True):
+        avisar(
+            status_callback,
+            "O menu iniciar/search nao entregou uma janela do Edge. Vou tentar o fallback direto.",
+            "orange",
+        )
+        pyautogui.press("esc")
+        if not dormir(0.5, stop_event):
+            return False
+        if not abrir_edge_direto(status_callback):
+            return False
+        hwnd, _titulo = aguardar_janela_edge(
+            config,
+            timeout=timeout_total,
+            stop_event=stop_event,
+            status_callback=status_callback,
+        )
+
+    if hwnd is None:
+        avisar(
+            status_callback,
+            "Nao consegui confirmar uma janela do Edge depois da abertura.",
+            "red",
+        )
+        return False
+
+    return forcar_edge_no_segundo_monitor(
+        config,
+        stop_event,
+        status_callback,
+        hwnd_preferido=hwnd,
+    )
 
 
 def validar_coordenada(nome, x, y):

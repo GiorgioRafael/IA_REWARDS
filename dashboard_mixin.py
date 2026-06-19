@@ -7,7 +7,11 @@ from tkinter import messagebox
 import pyautogui as pa
 from pynput import keyboard
 
-from automacao_edge import limpar_cache_execucao, obter_coordenada_alvo_visual
+from automacao_edge import (
+    limpar_cache_execucao,
+    obter_cache_painel_rewards,
+    obter_coordenada_alvo_visual,
+)
 from dashboard_rewards import (
     DashboardRewardsClient,
     agora_iso_utc,
@@ -66,6 +70,78 @@ class DashboardMixin:
 
         return self.abrir_painel_rewards_sessao(tentativas=2)
 
+    def montar_candidatos_leitura_pontos(
+        self,
+        anchor_x,
+        anchor_y,
+        leitura,
+    ):
+        candidatos = []
+        usados = set()
+
+        def adicionar(nome, x, y):
+            try:
+                x = int(x)
+                y = int(y)
+            except (TypeError, ValueError):
+                return
+
+            chave = (x, y)
+            if chave in usados:
+                return
+            usados.add(chave)
+            candidatos.append({"origem": nome, "x": x, "y": y})
+
+        double_click_x = leitura.get("double_click_x")
+        double_click_y = leitura.get("double_click_y")
+        if double_click_x is not None and double_click_y is not None:
+            try:
+                x_capturado = int(double_click_x)
+                y_capturado = int(double_click_y)
+                if self.ponto_dentro_da_tela_atual(x_capturado, y_capturado):
+                    adicionar("posicao_capturada", x_capturado, y_capturado)
+                else:
+                    self.log_execucao(
+                        "Dashboard: posicao capturada dos pontos fica fora da tela atual "
+                        f"(x={x_capturado}, y={y_capturado}). Vou tentar candidatos dinamicos."
+                    )
+            except (TypeError, ValueError):
+                self.log_execucao(
+                    "Dashboard: posicao capturada dos pontos esta invalida. Vou tentar candidatos dinamicos."
+                )
+
+        painel = obter_cache_painel_rewards(self.config)
+        if painel is None and hasattr(self, "detectar_estado_rewards"):
+            try:
+                estado = self.detectar_estado_rewards()
+                painel = estado.get("painel") if isinstance(estado, dict) else None
+            except Exception as exc:
+                self.log_execucao(
+                    f"Dashboard: nao consegui atualizar regiao do painel para leitura de pontos: {exc}"
+                )
+
+        if painel is not None:
+            painel_x = int(painel["x"])
+            painel_y = int(painel["y"])
+            painel_w = int(painel["width"])
+            # O numero de pontos fica no cabecalho fixo do popup, perto do canto esquerdo.
+            adicionar(
+                "painel_detectado",
+                painel_x + max(70, min(115, painel_w // 4)),
+                painel_y + 82,
+            )
+            adicionar(
+                "painel_detectado_ajuste",
+                painel_x + max(70, min(115, painel_w // 4)),
+                painel_y + 94,
+            )
+
+        offset_x = int(leitura.get("click_offset_x", -245))
+        offset_y = int(leitura.get("click_offset_y", -38))
+        adicionar("offset_exibir_painel", int(anchor_x) + offset_x, int(anchor_y) + offset_y)
+
+        return candidatos
+
     def copiar_pontos_rewards_clipboard(
         self,
         abrir_edge_primeiro=False,
@@ -83,10 +159,6 @@ class DashboardMixin:
         dashboard = self.config.get("dashboard", {})
         leitura = dashboard.get("leitura_pontos", {})
         tentativas = max(1, int(leitura.get("tentativas", 3)))
-        offset_x = int(leitura.get("click_offset_x", -245))
-        offset_y = int(leitura.get("click_offset_y", -38))
-        double_click_x = leitura.get("double_click_x")
-        double_click_y = leitura.get("double_click_y")
         restaurar_clipboard = bool(leitura.get("restaurar_clipboard", True))
 
         anchor = self.obter_anchor_pontos_rewards(
@@ -100,30 +172,13 @@ class DashboardMixin:
             }
 
         anchor_x, anchor_y = anchor
-        usar_posicao_capturada = False
-        if double_click_x is not None and double_click_y is not None:
-            try:
-                x_capturado = int(double_click_x)
-                y_capturado = int(double_click_y)
-                if self.ponto_dentro_da_tela_atual(x_capturado, y_capturado):
-                    x = x_capturado
-                    y = y_capturado
-                    origem_posicao = "posicao_capturada"
-                    usar_posicao_capturada = True
-                else:
-                    self.log_execucao(
-                        "Dashboard: posicao capturada dos pontos fica fora da tela atual "
-                        f"(x={x_capturado}, y={y_capturado}). Usando offset do painel."
-                    )
-            except (TypeError, ValueError):
-                self.log_execucao(
-                    "Dashboard: posicao capturada dos pontos esta invalida. Usando offset do painel."
-                )
-
-        if not usar_posicao_capturada:
-            x = anchor_x + offset_x
-            y = anchor_y + offset_y
-            origem_posicao = "offset_legado"
+        candidatos = self.montar_candidatos_leitura_pontos(anchor_x, anchor_y, leitura)
+        if not candidatos:
+            return {
+                "ok": False,
+                "erro": "sem_candidato_leitura_pontos",
+                "anchor": {"x": anchor_x, "y": anchor_y},
+            }
 
         texto_anterior = None
         try:
@@ -134,55 +189,68 @@ class DashboardMixin:
         sentinel = f"__AI_REWARDS_CLIPBOARD_{uuid.uuid4().hex}__"
 
         try:
-            for tentativa in range(1, tentativas + 1):
-                if not self.esperar_se_pausado():
-                    return {"ok": False, "erro": "interrompido"}
+            ultimo_texto = None
+            ultimo_click = None
+            ultima_origem = None
+            for candidato in candidatos:
+                x = candidato["x"]
+                y = candidato["y"]
+                origem_posicao = candidato["origem"]
+                for tentativa in range(1, tentativas + 1):
+                    if not self.esperar_se_pausado():
+                        return {"ok": False, "erro": "interrompido"}
 
-                self.log_execucao(
-                    f"Lendo pontos Rewards via clipboard tentativa {tentativa}/{tentativas}: "
-                    f"x={x}, y={y}, origem={origem_posicao}."
-                )
-                pyperclip.copy(sentinel)
-                pa.moveTo(x, y, duration=0.12)
-                pa.click(x=x, y=y, clicks=2, interval=0.08)
-                if not self.sleep_interruptivel(0.15):
-                    return {"ok": False, "erro": "interrompido"}
-                pa.hotkey("ctrl", "c")
-                if not self.sleep_interruptivel(0.2):
-                    return {"ok": False, "erro": "interrompido"}
-
-                texto = pyperclip.paste()
-                pontos = normalizar_pontos_texto(texto)
-                valido, motivo_validacao = validar_leitura_pontos(
-                    texto,
-                    pontos,
-                    leitura,
-                    self.ultimo_pontos_lidos,
-                )
-                if valido and texto != sentinel:
-                    return {
-                        "ok": True,
-                        "pontos": pontos,
-                        "texto": texto,
-                        "metodo": "double_click_clipboard",
-                        "origem_posicao": origem_posicao,
-                        "anchor": {"x": anchor_x, "y": anchor_y},
-                        "click": {"x": x, "y": y},
-                    }
-
-                if texto != sentinel:
                     self.log_execucao(
-                        "Dashboard: leitura_rejeitada "
-                        f"({motivo_validacao}); texto={texto!r}; pontos={pontos}."
+                        f"Lendo pontos Rewards via clipboard tentativa {tentativa}/{tentativas}: "
+                        f"x={x}, y={y}, origem={origem_posicao}."
                     )
+                    pyperclip.copy(sentinel)
+                    pa.moveTo(x, y, duration=0.12)
+                    pa.click(x=x, y=y, clicks=2, interval=0.08)
+                    if not self.sleep_interruptivel(0.15):
+                        return {"ok": False, "erro": "interrompido"}
+                    pa.hotkey("ctrl", "c")
+                    if not self.sleep_interruptivel(0.2):
+                        return {"ok": False, "erro": "interrompido"}
+
+                    texto = pyperclip.paste()
+                    ultimo_texto = texto
+                    ultimo_click = {"x": x, "y": y}
+                    ultima_origem = origem_posicao
+                    pontos = normalizar_pontos_texto(texto)
+                    valido, motivo_validacao = validar_leitura_pontos(
+                        texto,
+                        pontos,
+                        leitura,
+                        self.ultimo_pontos_lidos,
+                    )
+                    if valido and texto != sentinel:
+                        return {
+                            "ok": True,
+                            "pontos": pontos,
+                            "texto": texto,
+                            "metodo": "double_click_clipboard",
+                            "origem_posicao": origem_posicao,
+                            "anchor": {"x": anchor_x, "y": anchor_y},
+                            "click": {"x": x, "y": y},
+                            "candidatos": candidatos,
+                        }
+
+                    if texto != sentinel:
+                        self.log_execucao(
+                            "Dashboard: leitura_rejeitada "
+                            f"({motivo_validacao}); texto={texto!r}; pontos={pontos}; "
+                            f"origem={origem_posicao}."
+                        )
 
             return {
                 "ok": False,
                 "erro": "clipboard_sem_numero_valido_ou_rejeitado",
-                "texto": pyperclip.paste(),
-                "origem_posicao": origem_posicao,
+                "texto": ultimo_texto if ultimo_texto is not None else pyperclip.paste(),
+                "origem_posicao": ultima_origem,
                 "anchor": {"x": anchor_x, "y": anchor_y},
-                "click": {"x": x, "y": y},
+                "click": ultimo_click,
+                "candidatos": candidatos,
             }
         finally:
             if restaurar_clipboard and texto_anterior is not None:
@@ -329,6 +397,11 @@ class DashboardMixin:
         click = resultado.get("click") or {}
         texto = resultado.get("texto")
         origem = resultado.get("origem_posicao")
+        candidatos = resultado.get("candidatos") or []
+        candidatos_texto = "\n".join(
+            f"- {item.get('origem')}: x={item.get('x')}, y={item.get('y')}"
+            for item in candidatos
+        ) or "nenhum"
 
         if resultado.get("ok"):
             mensagem = (
@@ -338,6 +411,7 @@ class DashboardMixin:
                 f"Origem da posicao: {origem}\n"
                 f"Ancora Exibir painel: x={anchor.get('x')}, y={anchor.get('y')}\n"
                 f"Coordenada do double click: x={click.get('x')}, y={click.get('y')}\n\n"
+                f"Candidatos testados:\n{candidatos_texto}\n\n"
                 "Se o valor estiver errado, capture novamente a posicao com F9 e teste outra vez."
             )
         else:
@@ -348,6 +422,7 @@ class DashboardMixin:
                 f"Origem da posicao: {origem}\n"
                 f"Ancora Exibir painel: x={anchor.get('x')}, y={anchor.get('y')}\n"
                 f"Coordenada do double click: x={click.get('x')}, y={click.get('y')}\n\n"
+                f"Candidatos testados:\n{candidatos_texto}\n\n"
                 "O painel ficara aberto para voce conferir visualmente onde o double click aconteceu."
             )
 
