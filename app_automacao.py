@@ -860,7 +860,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
 
         ttk.Checkbutton(
             agendamento_frame,
-            text="Desligar o computador ao finalizar com sucesso",
+            text="Desligar o computador ao finalizar a execucao agendada",
             variable=self.agendamento_desligar_var,
         ).grid(row=1, column=0, columnspan=3, sticky="w", padx=5, pady=5)
 
@@ -944,6 +944,9 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         self.buscar_titulo_janela_edge_var = tk.BooleanVar(
             value=navegador.get("buscar_titulo_janela", False)
         )
+        self.fechar_popup_restaurar_paginas_var = tk.BooleanVar(
+            value=navegador.get("fechar_popup_restaurar_paginas", True)
+        )
         deteccao = self.config["deteccao_imagem"]
         usando_versao_fixa = self.config.get("automacao", {}).get(
             "usar_versao_fixa", True
@@ -1014,6 +1017,12 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             text="Buscar janela pelo titulo antes dos atalhos",
             variable=self.buscar_titulo_janela_edge_var,
         ).grid(row=6, column=0, columnspan=4, sticky="w", padx=5, pady=5)
+
+        ttk.Checkbutton(
+            abertura_frame,
+            text="Fechar popup 'Restaurar paginas' antes do Rewards",
+            variable=self.fechar_popup_restaurar_paginas_var,
+        ).grid(row=7, column=0, columnspan=4, sticky="w", padx=5, pady=5)
 
         modo_frame = ttk.LabelFrame(
             self.deteccao_tab, text="Deteccao de imagem > Modo", padding="10"
@@ -1401,6 +1410,9 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             navegador = self.config.setdefault("navegador", {})
             navegador["forcar_segundo_monitor"] = self.forcar_edge_segundo_monitor_var.get()
             navegador["buscar_titulo_janela"] = self.buscar_titulo_janela_edge_var.get()
+            navegador[
+                "fechar_popup_restaurar_paginas"
+            ] = self.fechar_popup_restaurar_paginas_var.get()
             navegador.setdefault("titulo_janela", "Microsoft Edge")
             self.config.setdefault("automacao", {})
             modo_por_imagem = self.modo_conjunto_var.get() == "imagem"
@@ -2188,12 +2200,23 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
         thread.start()
 
     def fluxo_auto_run(self, shutdown_on_success, scheduled_run, origem):
+        desligamento_solicitado = False
         try:
             if scheduled_run:
                 self.marcar_etapa("Agendamento automatico", "em execucao", origem)
 
             concluido = self.fluxo_completo()
-            if concluido and shutdown_on_success and not self.stop_automation.is_set():
+            if scheduled_run and shutdown_on_success:
+                motivo = (
+                    "Fluxo agendado concluido."
+                    if concluido
+                    else "Fluxo agendado terminou com falha/interrupcao."
+                )
+                self.marcar_etapa("Agendamento automatico", "finalizado", motivo)
+                desligamento_solicitado = True
+                self.desligar_computador()
+            elif concluido and shutdown_on_success and not self.stop_automation.is_set():
+                desligamento_solicitado = True
                 self.desligar_computador()
             elif concluido:
                 self.status_com_log("Execucao automatica concluida sem desligamento.", "green")
@@ -2211,6 +2234,13 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
             self.marcar_etapa("Execucao automatica", "erro", str(exc))
             self.capturar_screenshot_falha("execucao_automatica", str(exc))
             self.status_com_log(f"Erro na execucao automatica: {exc}", "red")
+            if scheduled_run and shutdown_on_success and not desligamento_solicitado:
+                self.marcar_etapa(
+                    "Agendamento automatico",
+                    "finalizado",
+                    "Erro na execucao agendada; desligamento sera solicitado mesmo assim.",
+                )
+                self.desligar_computador()
 
     def total_segundos_timer_automatico(self):
         timer_automatico = self.config.get("timer_automatico", {})
@@ -3199,7 +3229,10 @@ def parse_cli_args():
     parser.add_argument(
         "--shutdown-on-success",
         action="store_true",
-        help="Desliga o computador se o fluxo automatico terminar com sucesso.",
+        help=(
+            "Desliga o computador ao fim da execucao automatica. "
+            "No modo agendado, desliga mesmo se o fluxo falhar."
+        ),
     )
     parser.add_argument(
         "--scheduled-run",

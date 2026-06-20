@@ -108,6 +108,9 @@
     "scrollbar_end_confirmations": 1,
     "scroll_end_threshold": 1.0,
     "scroll_visual_min_scrolls": 2,
+    "painel_forte_score_min": 8.0,
+    "painel_forte_logo_min": 0.85,
+    "painel_forte_fechar_min": 0.7,
     "painel_anchor_width": 500,
     "painel_anchor_height": 1040,
     "painel_anchor_x_offset": -360,
@@ -175,6 +178,7 @@
   "navegador": {
     "forcar_segundo_monitor": true,
     "buscar_titulo_janela": false,
+    "fechar_popup_restaurar_paginas": true,
     "titulo_janela": "Microsoft Edge",
     "abrir_timeout_segundos": 30,
     "abrir_direto_primeiro": true,
@@ -267,6 +271,40 @@
         "height": null
       }
     },
+    "popup_restaurar_paginas": {
+      "template": "assets/alvos/popup_restaurar_paginas.png",
+      "treino_dir": "assets/treino_popup_restaurar_paginas",
+      "confianca": 0.82,
+      "score_forte": 0.95,
+      "capture_width": 430,
+      "capture_height": 190,
+      "click_offset_x": 0,
+      "click_offset_y": 0,
+      "usar_cache": false,
+      "regiao": {
+        "x": null,
+        "y": null,
+        "width": null,
+        "height": null
+      }
+    },
+    "popup_restaurar_x": {
+      "template": "assets/alvos/popup_restaurar_x.png",
+      "treino_dir": "assets/treino_popup_restaurar_x",
+      "confianca": 0.82,
+      "score_forte": 0.95,
+      "capture_width": 50,
+      "capture_height": 50,
+      "click_offset_x": 0,
+      "click_offset_y": 0,
+      "usar_cache": false,
+      "regiao": {
+        "x": null,
+        "y": null,
+        "width": null,
+        "height": null
+      }
+    },
     "tracker_edge_tempo": {
       "template": "assets/alvos/tracker_edge_tempo.png",
       "treino_dir": "assets/treino_tracker_edge_tempo",
@@ -321,9 +359,9 @@
       "x": -1537,
       "y": 50
     },
-    "search_count": 23,
+    "search_count": 10,
     "executar_conjunto_diario": true,
-    "executar_pesquisas": true,
+    "executar_pesquisas": false,
     "usar_ctrl_l_desktop": true,
     "delay_apos_conjunto_diario": {
       "min": 2.0,
@@ -339,7 +377,7 @@
     }
   },
   "edge_tempo": {
-    "executar": true,
+    "executar": false,
     "url_video": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
     "primeira_espera_minutos": 36.0,
     "margem_extra_minutos": 1.0,
@@ -348,7 +386,7 @@
     "delay_apos_reabrir_edge": 2.0
   },
   "brotato": {
-    "executar": true,
+    "executar": false,
     "app_busca": "Brotato",
     "tempo_minutos": 17.0,
     "delay_apos_enter": 25.0,

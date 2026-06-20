@@ -918,7 +918,13 @@ def salvar_cache_alvo_visual(config, nome, x, y, alvo=None):
         "y": int(y),
         "score": float((alvo or {}).get("score", 0)),
         "template": (alvo or {}).get("template"),
+        "detected_at": time.monotonic(),
     }
+
+
+def limpar_cache_alvo_visual(config, nome):
+    cache_alvos = obter_cache_execucao(config)["alvos_visuais"]
+    cache_alvos.pop(nome, None)
 
 
 def copiar_regiao_painel(regiao):
@@ -1242,6 +1248,30 @@ def obter_config_alvo_visual(config, nome):
             "capture_height": 42,
             "click_offset_x": 0,
             "click_offset_y": 70,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "popup_restaurar_paginas": {
+            "template": "assets/alvos/popup_restaurar_paginas.png",
+            "treino_dir": "assets/treino_popup_restaurar_paginas",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 430,
+            "capture_height": 190,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "usar_cache": False,
+            "regiao": {"x": None, "y": None, "width": None, "height": None},
+        },
+        "popup_restaurar_x": {
+            "template": "assets/alvos/popup_restaurar_x.png",
+            "treino_dir": "assets/treino_popup_restaurar_x",
+            "confianca": 0.82,
+            "score_forte": 0.95,
+            "capture_width": 50,
+            "capture_height": 50,
+            "click_offset_x": 0,
+            "click_offset_y": 0,
+            "usar_cache": False,
             "regiao": {"x": None, "y": None, "width": None, "height": None},
         },
         "tracker_edge_tempo": {
@@ -1778,7 +1808,8 @@ def clicar_alvo_visual(
 
     alvo_config = obter_config_alvo_visual(config, nome)
     cache_alvos = obter_cache_execucao(config)["alvos_visuais"]
-    cache = cache_alvos.get(nome)
+    usar_cache = bool(alvo_config.get("usar_cache", True))
+    cache = cache_alvos.get(nome) if usar_cache else None
     if cache is not None:
         x = int(cache["x"])
         y = int(cache["y"])
@@ -1799,11 +1830,12 @@ def clicar_alvo_visual(
 
         x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
         y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
-        salvar_cache_alvo_visual(config, nome, x, y, alvo)
-        avisar(
-            status_callback,
-            f"Coordenada do alvo visual '{nome}' salva no cache desta execucao.",
-        )
+        if usar_cache:
+            salvar_cache_alvo_visual(config, nome, x, y, alvo)
+            avisar(
+                status_callback,
+                f"Coordenada do alvo visual '{nome}' salva no cache desta execucao.",
+            )
 
     avisar(status_callback, f"Clicando alvo visual '{nome}': x={x}, y={y}.")
     mover_mouse(x, y)
@@ -1832,7 +1864,8 @@ def obter_coordenada_alvo_visual(
 ):
     alvo_config = obter_config_alvo_visual(config, nome)
     cache_alvos = obter_cache_execucao(config)["alvos_visuais"]
-    cache = cache_alvos.get(nome)
+    usar_cache = bool(alvo_config.get("usar_cache", True))
+    cache = cache_alvos.get(nome) if usar_cache else None
     if cache is not None:
         return int(cache["x"]), int(cache["y"]), True
 
@@ -1848,7 +1881,8 @@ def obter_coordenada_alvo_visual(
 
     x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
     y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
-    salvar_cache_alvo_visual(config, nome, x, y, alvo)
+    if usar_cache:
+        salvar_cache_alvo_visual(config, nome, x, y, alvo)
     return x, y, False
 
 
@@ -1868,12 +1902,118 @@ def detectar_alvo_visual_visivel_e_cachear(
         stop_event=stop_event,
     )
     if alvo is None:
+        limpar_cache_alvo_visual(config, nome)
         return None, None, None
 
     x = int(alvo["x"]) + int(alvo_config.get("click_offset_x", 0))
     y = int(alvo["y"]) + int(alvo_config.get("click_offset_y", 0))
-    salvar_cache_alvo_visual(config, nome, x, y, alvo)
+    if bool(alvo_config.get("usar_cache", True)):
+        salvar_cache_alvo_visual(config, nome, x, y, alvo)
     return x, y, alvo
+
+
+def montar_regiao_por_alvo_visual(alvo, margem=12):
+    if alvo is None:
+        return None
+
+    largura = int(alvo.get("width") or 0)
+    altura = int(alvo.get("height") or 0)
+    if largura <= 0 or altura <= 0:
+        return None
+
+    x = int(alvo["x"] - largura / 2) - int(margem)
+    y = int(alvo["y"] - altura / 2) - int(margem)
+    return limitar_regiao_virtual(
+        x,
+        y,
+        largura + int(margem) * 2,
+        altura + int(margem) * 2,
+    )
+
+
+def fechar_popup_restaurar_paginas(
+    config,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
+    if stop_event is not None and stop_event.is_set():
+        return False
+
+    navegador = config.get("navegador", {})
+    if not bool(navegador.get("fechar_popup_restaurar_paginas", True)):
+        return True
+
+    if not listar_templates_alvo_visual(config, "popup_restaurar_paginas"):
+        return True
+
+    avisar(
+        status_callback,
+        "Verificando popup 'Restaurar paginas' antes de abrir a extensao.",
+    )
+    popup = localizar_alvo_visual(
+        config,
+        "popup_restaurar_paginas",
+        status_callback=status_callback,
+        stop_event=stop_event,
+    )
+
+    if stop_event is not None and stop_event.is_set():
+        return False
+
+    if popup is None:
+        avisar(
+            status_callback,
+            "Popup 'Restaurar paginas' nao encontrado; seguindo para abrir a extensao.",
+        )
+        return True
+
+    regiao_popup = montar_regiao_por_alvo_visual(popup, margem=16)
+    if regiao_popup is None:
+        avisar(
+            status_callback,
+            "Popup 'Restaurar paginas' foi encontrado, mas nao consegui montar a regiao do X.",
+            "orange",
+        )
+        return True
+
+    if not listar_templates_alvo_visual(config, "popup_restaurar_x"):
+        avisar(
+            status_callback,
+            "Popup 'Restaurar paginas' encontrado, mas o X ainda nao foi treinado. "
+            "Vou seguir sem clicar para evitar clique inseguro.",
+            "orange",
+        )
+        return True
+
+    avisar(
+        status_callback,
+        "Popup encontrado. Procurando o X de fechar dentro da area do popup.",
+    )
+    popup_fechado = clicar_alvo_visual(
+        config,
+        "popup_restaurar_x",
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+        regiao=regiao_popup,
+    )
+
+    if stop_event is not None and stop_event.is_set():
+        return False
+
+    if popup_fechado:
+        avisar(status_callback, "Popup 'Restaurar paginas' fechado.", "green")
+        dormir(0.4, stop_event)
+    else:
+        avisar(
+            status_callback,
+            "Popup encontrado, mas o X nao foi localizado dentro dele. "
+            "Seguindo sem clique inseguro.",
+            "orange",
+        )
+
+    return True
 
 
 def abrir_extensao_rewards(
@@ -1883,6 +2023,14 @@ def abrir_extensao_rewards(
     status_callback=None,
     safety_callback=None,
 ):
+    if not fechar_popup_restaurar_paginas(
+        config,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    ):
+        return False
+
     if usar_versao_fixa(config):
         avisar(status_callback, "Abrindo extensao pela versao fixa.")
         return clicar_coordenada(
@@ -2518,13 +2666,34 @@ def regioes_painel_compativeis(referencia, candidato):
     )
 
 
-def obter_anchor_exibir_painel(config):
+def painel_rewards_forte(config, painel):
+    if painel is None:
+        return False
+
+    deteccao = obter_config_deteccao(config)
+    score_min = float(deteccao.get("painel_forte_score_min", 8.0))
+    logo_min = float(deteccao.get("painel_forte_logo_min", 0.85))
+    fechar_min = float(deteccao.get("painel_forte_fechar_min", 0.70))
+
+    score = float(painel.get("score") or 0)
+    logo_score = float(painel.get("logo_score") or 0)
+    close_score = float(painel.get("close_score") or 0)
+
+    tem_tamanho_plausivel = int(painel.get("width", 0)) >= 320 and int(painel.get("height", 0)) >= 520
+    return tem_tamanho_plausivel and score >= score_min and logo_score >= logo_min and close_score >= fechar_min
+
+
+def obter_anchor_exibir_painel(config, max_age=None):
     cache = obter_cache_execucao(config).get("alvos_visuais", {})
     alvo = cache.get("exibir_painel")
     if not alvo:
         return None
 
     try:
+        if max_age is not None:
+            detected_at = float(alvo.get("detected_at") or 0)
+            if detected_at <= 0 or time.monotonic() - detected_at > float(max_age):
+                return None
         return int(alvo["x"]), int(alvo["y"])
     except (KeyError, TypeError, ValueError):
         return None
@@ -2701,10 +2870,46 @@ def detectar_painel_atual(config, status_callback=None):
 
 def obter_regiao_painel_rewards(config, status_callback=None, permitir_cache_sem_deteccao=True):
     anchor = obter_anchor_exibir_painel(config)
+    anchor_fresco = obter_anchor_exibir_painel(config, max_age=8.0)
     painel_cache = obter_cache_painel_rewards(config)
     painel = detectar_painel_atual(config, status_callback)
     if painel is not None:
+        if anchor_fresco is not None and not ponto_dentro_regiao(
+            anchor_fresco[0], anchor_fresco[1], painel, margem=80
+        ):
+            avisar(
+                status_callback,
+                "Painel automatico nao contem o 'Exibir painel' detectado agora. "
+                "Vou usar a regiao derivada do alvo treinado para manter as coordenadas do mouse coerentes.",
+                "orange",
+            )
+            painel_anchor = derivar_regiao_painel_por_exibir_painel(config, status_callback)
+            if painel_anchor is not None:
+                return salvar_cache_painel_rewards(config, painel_anchor)
+            return painel_cache if permitir_cache_sem_deteccao else None
+
         if painel_cache is not None and not regioes_painel_compativeis(painel_cache, painel):
+            if anchor is not None:
+                avisar(
+                    status_callback,
+                    "Painel automatico mudou para uma regiao distante, mas ainda existe "
+                    "ancora de 'Exibir painel'. Vou manter a regiao derivada da ancora.",
+                    "orange",
+                )
+                painel_anchor = derivar_regiao_painel_por_exibir_painel(config, status_callback)
+                if painel_anchor is not None:
+                    return salvar_cache_painel_rewards(config, painel_anchor)
+                return painel_cache if permitir_cache_sem_deteccao else None
+
+            if painel_rewards_forte(config, painel):
+                avisar(
+                    status_callback,
+                    "Painel detectado mudou para uma regiao distante, mas a deteccao veio forte. "
+                    "Como nao ha ancora de 'Exibir painel', vou substituir o cache antigo.",
+                    "orange",
+                )
+                return salvar_cache_painel_rewards(config, painel)
+
             avisar(
                 status_callback,
                 "Painel detectado automaticamente mudou para uma regiao distante. "
@@ -2723,13 +2928,13 @@ def obter_regiao_painel_rewards(config, status_callback=None, permitir_cache_sem
                 status_callback,
                 "Painel detectado automaticamente nao contem o ponto de 'Exibir painel'. "
                 f"Painel=({painel['x']},{painel['y']},{painel['width']},{painel['height']}), "
-                f"anchor=({anchor[0]},{anchor[1]}). Vou ignorar esse painel.",
+                f"anchor=({anchor[0]},{anchor[1]}). Vou manter a regiao derivada da ancora.",
                 "orange",
             )
             painel_anchor = derivar_regiao_painel_por_exibir_painel(config, status_callback)
             if painel_anchor is not None:
                 return salvar_cache_painel_rewards(config, painel_anchor)
-            return None
+            return painel_cache if permitir_cache_sem_deteccao else None
 
         return salvar_cache_painel_rewards(config, painel)
 
