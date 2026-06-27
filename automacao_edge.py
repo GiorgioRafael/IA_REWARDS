@@ -2683,6 +2683,11 @@ def painel_rewards_forte(config, painel):
     return tem_tamanho_plausivel and score >= score_min and logo_score >= logo_min and close_score >= fechar_min
 
 
+def permitir_troca_painel_distante_sem_ancora(config):
+    deteccao = obter_config_deteccao(config)
+    return bool(deteccao.get("permitir_troca_painel_distante_sem_ancora", False))
+
+
 def obter_anchor_exibir_painel(config, max_age=None):
     cache = obter_cache_execucao(config).get("alvos_visuais", {})
     alvo = cache.get("exibir_painel")
@@ -2901,7 +2906,7 @@ def obter_regiao_painel_rewards(config, status_callback=None, permitir_cache_sem
                     return salvar_cache_painel_rewards(config, painel_anchor)
                 return painel_cache if permitir_cache_sem_deteccao else None
 
-            if painel_rewards_forte(config, painel):
+            if painel_rewards_forte(config, painel) and permitir_troca_painel_distante_sem_ancora(config):
                 avisar(
                     status_callback,
                     "Painel detectado mudou para uma regiao distante, mas a deteccao veio forte. "
@@ -2915,7 +2920,11 @@ def obter_regiao_painel_rewards(config, status_callback=None, permitir_cache_sem
                 "Painel detectado automaticamente mudou para uma regiao distante. "
                 f"Detectado=({painel['x']},{painel['y']},{painel['width']},{painel['height']}), "
                 f"cache=({painel_cache['x']},{painel_cache['y']},{painel_cache['width']},{painel_cache['height']}). "
-                "Vou ignorar esse salto para evitar scroll fora do Rewards.",
+                + (
+                    "Vou manter a ultima regiao confiavel para evitar scroll fora do Rewards."
+                    if permitir_cache_sem_deteccao
+                    else "Vou rejeitar essa deteccao nesta verificacao forte."
+                ),
                 "orange",
             )
             painel_anchor = derivar_regiao_painel_por_exibir_painel(config, status_callback)
@@ -3471,6 +3480,7 @@ def executar_cards_por_imagem(
     fim_scroll_detectado = False
     fim_scroll_confirmacoes = 0
     conferindo_apos_card = False
+    limite_scrolls_atingido = False
     while True:
         if deve_parar(stop_event):
             return False
@@ -3560,6 +3570,7 @@ def executar_cards_por_imagem(
             break
 
         if scrolls >= limite_scrolls:
+            limite_scrolls_atingido = True
             avisar(
                 status_callback,
                 f"Limite de seguranca de scrolls atingido ({limite_scrolls}). Encerrando busca.",
@@ -3628,6 +3639,15 @@ def executar_cards_por_imagem(
         avisar(status_callback, "Nenhum card com +10/+5 encontrado. Seguindo sem clicar.", "orange")
     else:
         avisar(status_callback, f"{cards_executados} card(s) bonus executado(s).", "green")
+
+    if limite_scrolls_atingido and bool(deteccao.get("falhar_ao_atingir_limite_scrolls", True)):
+        avisar(
+            status_callback,
+            "Busca do conjunto diario atingiu o limite de scroll sem confirmar o fim real. "
+            "Vou marcar a etapa como falha/parcial para nao esconder pontos nao coletados.",
+            "red",
+        )
+        return False
 
     return True
 
