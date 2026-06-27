@@ -291,7 +291,14 @@ DEFAULT_CONFIG = {
     "agendamento_automatico": {
         "horario": "06:00",
         "desligar_ao_finalizar": True,
+        "delay_desligar_falha_minutos": 31,
         "task_name": "AI Rewards Automacao",
+        "fluxo": {
+            "executar_conjunto_diario": True,
+            "executar_pesquisas": True,
+            "executar_edge_tempo": False,
+            "executar_brotato": False,
+        },
     },
 }
 

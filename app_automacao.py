@@ -39,13 +39,21 @@ from pynput import keyboard
 
 from automacao_edge import (
     abrir_ver_tudo_e_detectar_tracker_edge,
+    abrir_edge,
+    aguardar_janela_edge,
     carregar_coordenadas,
     detectar_estado_tracker_edge,
     executar_fluxo_inicial,
     clicar_alvo_visual,
+    encontrar_janela_edge,
+    focar_janela_edge,
+    janela_parece_edge,
+    janela_windows_valida,
     limpar_cache_execucao,
     localizar_alvo_visual,
     listar_templates_alvo_visual,
+    obter_janela_ativa,
+    obter_titulo_janela,
 )
 from deteccao_imagem import (
     clicar_mouse,
@@ -359,6 +367,32 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         )
         self.agendamento_desligar_var = tk.BooleanVar(
             value=agendamento.get("desligar_ao_finalizar", True)
+        )
+        agendamento_fluxo = agendamento.get("fluxo", {})
+        agendamento_fluxo_padrao = DEFAULT_CONFIG["agendamento_automatico"]["fluxo"]
+        self.agendamento_executar_conjunto_var = tk.BooleanVar(
+            value=agendamento_fluxo.get(
+                "executar_conjunto_diario",
+                agendamento_fluxo_padrao["executar_conjunto_diario"],
+            )
+        )
+        self.agendamento_executar_pesquisas_var = tk.BooleanVar(
+            value=agendamento_fluxo.get(
+                "executar_pesquisas",
+                agendamento_fluxo_padrao["executar_pesquisas"],
+            )
+        )
+        self.agendamento_executar_edge_tempo_var = tk.BooleanVar(
+            value=agendamento_fluxo.get(
+                "executar_edge_tempo",
+                agendamento_fluxo_padrao["executar_edge_tempo"],
+            )
+        )
+        self.agendamento_executar_brotato_var = tk.BooleanVar(
+            value=agendamento_fluxo.get(
+                "executar_brotato",
+                agendamento_fluxo_padrao["executar_brotato"],
+            )
         )
         self.agendamento_comando_var = tk.StringVar(value=self.descrever_comando_agendamento())
         self.agendamento_status_var = tk.StringVar(value="Verificando tarefa...")
@@ -840,6 +874,44 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         self.cancel_button.grid(row=1, column=2, padx=5, pady=(8, 0), sticky="ew")
 
     def setup_agendamento_tab(self):
+        fluxo_frame = ttk.LabelFrame(
+            self.agendamento_tab,
+            text="Agendamento automatico > O que executar",
+            padding="10",
+        )
+        fluxo_frame.pack(fill="x", pady=(0, 10))
+
+        ttk.Checkbutton(
+            fluxo_frame,
+            text="Conjunto diario",
+            variable=self.agendamento_executar_conjunto_var,
+        ).grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        ttk.Checkbutton(
+            fluxo_frame,
+            text="Pesquisar com o Bing",
+            variable=self.agendamento_executar_pesquisas_var,
+        ).grid(row=0, column=1, sticky="w", padx=5, pady=5)
+        ttk.Checkbutton(
+            fluxo_frame,
+            text="Navegar com Edge",
+            variable=self.agendamento_executar_edge_tempo_var,
+        ).grid(row=0, column=2, sticky="w", padx=5, pady=5)
+        ttk.Checkbutton(
+            fluxo_frame,
+            text="Jogar PC (Brotato)",
+            variable=self.agendamento_executar_brotato_var,
+        ).grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+
+        ttk.Label(
+            fluxo_frame,
+            text=(
+                "Essas opcoes valem apenas para a execucao agendada. "
+                "A aba Execucao continua controlando somente o uso manual e o timer."
+            ),
+            foreground="gray",
+            wraplength=680,
+        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=5, pady=(6, 0))
+
         agendamento_frame = ttk.LabelFrame(
             self.agendamento_tab, text="Agendamento automatico > Windows", padding="10"
         )
@@ -1645,6 +1717,12 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             )
             agendamento["desligar_ao_finalizar"] = self.agendamento_desligar_var.get()
             agendamento.setdefault("task_name", AUTO_TASK_DEFAULT_NAME)
+            agendamento["fluxo"] = {
+                "executar_conjunto_diario": self.agendamento_executar_conjunto_var.get(),
+                "executar_pesquisas": self.agendamento_executar_pesquisas_var.get(),
+                "executar_edge_tempo": self.agendamento_executar_edge_tempo_var.get(),
+                "executar_brotato": self.agendamento_executar_brotato_var.get(),
+            }
             self.agendamento_horario_var.set(agendamento["horario"])
             self.agendamento_comando_var.set(self.descrever_comando_agendamento())
 
@@ -1922,13 +2000,77 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         return not self.stop_automation.is_set()
 
     def fluxo_selecionado_existe(self):
-        pesquisas = self.config["pesquisas"]
+        return self.fluxo_tem_alguma_funcao(self.obter_fluxo_manual_config())
+
+    def fluxo_tem_alguma_funcao(self, fluxo):
         return (
-            pesquisas["executar_conjunto_diario"]
-            or pesquisas.get("executar_pesquisas", True)
-            or self.config.get("edge_tempo", {}).get("executar", False)
-            or self.config.get("brotato", {}).get("executar", False)
+            bool(fluxo.get("executar_conjunto_diario", False))
+            or bool(fluxo.get("executar_pesquisas", False))
+            or bool(fluxo.get("executar_edge_tempo", False))
+            or bool(fluxo.get("executar_brotato", False))
         )
+
+    def obter_fluxo_manual_config(self):
+        pesquisas = self.config["pesquisas"]
+        return {
+            "executar_conjunto_diario": bool(
+                pesquisas.get("executar_conjunto_diario", False)
+            ),
+            "executar_pesquisas": bool(pesquisas.get("executar_pesquisas", True)),
+            "executar_edge_tempo": bool(
+                self.config.get("edge_tempo", {}).get("executar", False)
+            ),
+            "executar_brotato": bool(
+                self.config.get("brotato", {}).get("executar", False)
+            ),
+        }
+
+    def obter_fluxo_agendamento_config(self):
+        agendamento = self.config.get("agendamento_automatico", {})
+        fluxo = agendamento.get("fluxo", {})
+        padrao = DEFAULT_CONFIG["agendamento_automatico"]["fluxo"]
+        return {
+            "executar_conjunto_diario": bool(
+                fluxo.get(
+                    "executar_conjunto_diario",
+                    padrao["executar_conjunto_diario"],
+                )
+            ),
+            "executar_pesquisas": bool(
+                fluxo.get("executar_pesquisas", padrao["executar_pesquisas"])
+            ),
+            "executar_edge_tempo": bool(
+                fluxo.get("executar_edge_tempo", padrao["executar_edge_tempo"])
+            ),
+            "executar_brotato": bool(
+                fluxo.get("executar_brotato", padrao["executar_brotato"])
+            ),
+        }
+
+    def aplicar_fluxo_config(self, fluxo):
+        pesquisas = self.config.setdefault("pesquisas", {})
+        pesquisas["executar_conjunto_diario"] = bool(
+            fluxo.get("executar_conjunto_diario", False)
+        )
+        pesquisas["executar_pesquisas"] = bool(
+            fluxo.get("executar_pesquisas", False)
+        )
+        self.config.setdefault("edge_tempo", {})["executar"] = bool(
+            fluxo.get("executar_edge_tempo", False)
+        )
+        self.config.setdefault("brotato", {})["executar"] = bool(
+            fluxo.get("executar_brotato", False)
+        )
+
+    def descrever_fluxo_config(self, fluxo):
+        nomes = [
+            ("executar_conjunto_diario", "Conjunto diario"),
+            ("executar_pesquisas", "Pesquisar com o Bing"),
+            ("executar_edge_tempo", "Navegar com Edge"),
+            ("executar_brotato", "Jogar PC (Brotato)"),
+        ]
+        ativos = [label for chave, label in nomes if fluxo.get(chave)]
+        return ", ".join(ativos) if ativos else "nenhuma funcao selecionada"
 
     def validar_fluxo_selecionado(self):
         if self.fluxo_selecionado_existe():
@@ -2104,7 +2246,7 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
         if self.agendamento_desligar_var.get():
             continuar = messagebox.askokcancel(
                 "Teste sem desligamento",
-                "O teste vai iniciar o mesmo fluxo selecionado agora, mas nao vai desligar o PC.\n\n"
+                "O teste vai iniciar o fluxo salvo nesta aba de agendamento, mas nao vai desligar o PC.\n\n"
                 "O desligamento automatico fica reservado para a tarefa diaria instalada.",
                 parent=self.root,
             )
@@ -2164,7 +2306,12 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
         if self.automation_running:
             return
 
-        if not self.fluxo_selecionado_existe():
+        fluxo = (
+            self.obter_fluxo_agendamento_config()
+            if scheduled_run
+            else self.obter_fluxo_manual_config()
+        )
+        if not self.fluxo_tem_alguma_funcao(fluxo):
             self.exec_logger.iniciar(
                 origem,
                 abrir_cmd=self.config.get("debug", {}).get("abrir_cmd", True),
@@ -2191,6 +2338,11 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
         self.status_com_log(
             f"{origem} iniciada. Desligar ao finalizar: {'sim' if shutdown_on_success else 'nao'}."
         )
+        if scheduled_run:
+            self.status_com_log(
+                "Fluxo do agendamento: "
+                f"{self.descrever_fluxo_config(fluxo)}."
+            )
 
         thread = threading.Thread(
             target=self.fluxo_auto_run,
@@ -2199,25 +2351,139 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
         )
         thread.start()
 
+    def edge_em_primeiro_plano(self):
+        hwnd = obter_janela_ativa()
+        if not janela_windows_valida(hwnd):
+            return False
+        return janela_parece_edge(hwnd, self.config.get("navegador", {}))
+
+    def garantir_edge_primeiro_plano_pos_falha(self):
+        if self.edge_em_primeiro_plano():
+            titulo = obter_titulo_janela(obter_janela_ativa()) or "janela Edge ativa"
+            self.status_com_log(
+                f"Falha agendada: Edge ja esta em primeiro plano ({titulo}).",
+                "green",
+            )
+            return True
+
+        hwnd, titulo = encontrar_janela_edge(self.config, preferir_ativa=False)
+        if hwnd is not None:
+            self.status_com_log(
+                f"Falha agendada: Edge encontrado. Vou deixar em primeiro plano: {titulo or 'sem titulo'}.",
+                "orange",
+            )
+            self.edge_session_hwnd = hwnd
+            self.edge_session_started = True
+            return focar_janela_edge(
+                hwnd,
+                self.config,
+                stop_event=None,
+                status_callback=self.status_com_log,
+            )
+
+        self.status_com_log(
+            "Falha agendada: Edge nao esta aberto. Vou abrir e deixar em primeiro plano.",
+            "orange",
+        )
+        if not abrir_edge(
+            self.config,
+            stop_event=None,
+            status_callback=self.status_com_log,
+        ):
+            self.status_com_log(
+                "Falha agendada: nao consegui abrir o Edge antes do desligamento longo.",
+                "red",
+            )
+            return False
+
+        hwnd, titulo = aguardar_janela_edge(
+            self.config,
+            timeout=self.config.get("navegador", {}).get("abrir_timeout_segundos", 30),
+            stop_event=None,
+            status_callback=self.status_com_log,
+        )
+        if hwnd is None:
+            self.status_com_log(
+                "Falha agendada: Edge abriu, mas nao consegui confirmar a janela.",
+                "red",
+            )
+            return False
+
+        self.edge_session_hwnd = hwnd
+        self.edge_session_started = True
+        self.status_com_log(
+            f"Falha agendada: Edge confirmado em primeiro plano: {titulo or 'sem titulo'}.",
+            "green",
+        )
+        return focar_janela_edge(
+            hwnd,
+            self.config,
+            stop_event=None,
+            status_callback=self.status_com_log,
+        )
+
+    def delay_desligamento_falha_agendada(self):
+        agendamento = self.config.get("agendamento_automatico", {})
+        minutos = agendamento.get("delay_desligar_falha_minutos", 31)
+        try:
+            minutos = float(minutos)
+        except (TypeError, ValueError):
+            minutos = 31.0
+        return max(60, int(minutos * 60))
+
+    def preparar_desligamento_longo_falha_agendada(self, motivo):
+        edge_ok = self.garantir_edge_primeiro_plano_pos_falha()
+        delay = self.delay_desligamento_falha_agendada()
+        detalhe_edge = (
+            "Edge em primeiro plano antes do desligamento longo."
+            if edge_ok
+            else "Nao consegui garantir Edge em primeiro plano."
+        )
+        self.marcar_etapa(
+            "Agendamento automatico",
+            "finalizado",
+            f"{motivo} {detalhe_edge}",
+        )
+        self.desligar_computador(
+            delay_segundos=delay,
+            motivo=(
+                "Execucao agendada falhou. "
+                "Mantendo/abrindo Edge e desligando depois da janela de recuperacao."
+            ),
+            comentario="AI Rewards falhou no agendamento; desligamento apos janela Edge.",
+        )
+
     def fluxo_auto_run(self, shutdown_on_success, scheduled_run, origem):
         desligamento_solicitado = False
+        fluxo_manual_original = None
         try:
             if scheduled_run:
                 self.marcar_etapa("Agendamento automatico", "em execucao", origem)
+                fluxo_manual_original = self.obter_fluxo_manual_config()
+                fluxo_agendado = self.obter_fluxo_agendamento_config()
+                self.status_com_log(
+                    "Aplicando fluxo salvo do agendamento nesta execucao: "
+                    f"{self.descrever_fluxo_config(fluxo_agendado)}."
+                )
+                self.aplicar_fluxo_config(fluxo_agendado)
 
             concluido = self.fluxo_completo()
             if scheduled_run and shutdown_on_success:
-                motivo = (
-                    "Fluxo agendado concluido."
-                    if concluido
-                    else "Fluxo agendado terminou com falha/interrupcao."
-                )
-                self.marcar_etapa("Agendamento automatico", "finalizado", motivo)
+                if concluido:
+                    self.marcar_etapa(
+                        "Agendamento automatico",
+                        "finalizado",
+                        "Fluxo agendado concluido.",
+                    )
+                    self.desligar_computador()
+                else:
+                    self.preparar_desligamento_longo_falha_agendada(
+                        "Fluxo agendado terminou com falha/interrupcao."
+                    )
                 desligamento_solicitado = True
-                self.desligar_computador()
             elif concluido and shutdown_on_success and not self.stop_automation.is_set():
-                desligamento_solicitado = True
                 self.desligar_computador()
+                desligamento_solicitado = True
             elif concluido:
                 self.status_com_log("Execucao automatica concluida sem desligamento.", "green")
             else:
@@ -2235,12 +2501,14 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
             self.capturar_screenshot_falha("execucao_automatica", str(exc))
             self.status_com_log(f"Erro na execucao automatica: {exc}", "red")
             if scheduled_run and shutdown_on_success and not desligamento_solicitado:
-                self.marcar_etapa(
-                    "Agendamento automatico",
-                    "finalizado",
-                    "Erro na execucao agendada; desligamento sera solicitado mesmo assim.",
+                self.preparar_desligamento_longo_falha_agendada(
+                    "Erro na execucao agendada."
                 )
-                self.desligar_computador()
+                desligamento_solicitado = True
+        finally:
+            if scheduled_run and fluxo_manual_original is not None:
+                self.aplicar_fluxo_config(fluxo_manual_original)
+                self.log_execucao("Fluxo manual restaurado apos execucao agendada.")
 
     def total_segundos_timer_automatico(self):
         timer_automatico = self.config.get("timer_automatico", {})
@@ -2437,13 +2705,18 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
                 self.log_execucao("Finalizando thread do modo timer.")
                 self.set_running(False)
 
-    def desligar_computador(self):
-        delay = int(
-            self.config.get("timer_automatico", {}).get("desligar_delay_segundos", 30)
-        )
+    def desligar_computador(self, delay_segundos=None, motivo=None, comentario=None):
+        if delay_segundos is None:
+            delay = int(
+                self.config.get("timer_automatico", {}).get("desligar_delay_segundos", 30)
+            )
+        else:
+            delay = int(delay_segundos)
         delay = max(0, delay)
+        motivo = motivo or "Fluxo concluido."
+        comentario = comentario or "AI Rewards concluiu o fluxo selecionado."
         self.status_com_log(
-            f"Fluxo concluido. Desligando o computador em {delay} segundo(s).",
+            f"{motivo} Desligando o computador em {delay} segundo(s).",
             "green",
         )
         self.marcar_etapa("Desligamento", "agendado", f"{delay}s")
@@ -2455,7 +2728,7 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
                 "/t",
                 str(delay),
                 "/c",
-                "AI Rewards concluiu o fluxo selecionado pelo modo timer.",
+                comentario,
             ],
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
