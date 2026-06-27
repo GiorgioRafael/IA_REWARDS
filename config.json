@@ -148,7 +148,7 @@
     "pausar_se_mover_durante_scroll": true
   },
   "debug": {
-    "abrir_cmd": false
+    "abrir_cmd": true
   },
   "dashboard": {
     "ativada": true,
@@ -361,7 +361,7 @@
       "x": -1537,
       "y": 50
     },
-    "search_count": 10,
+    "search_count": 23,
     "executar_conjunto_diario": true,
     "executar_pesquisas": false,
     "usar_ctrl_l_desktop": true,
@@ -396,14 +396,21 @@
     "fechar_timeout_segundos": 20.0
   },
   "timer_automatico": {
-    "horas": 1,
-    "minutos": 0,
-    "segundos": 0,
+    "horas": 0,
+    "minutos": 15,
+    "segundos": 20,
     "desligar_delay_segundos": 30
   },
   "agendamento_automatico": {
     "horario": "05:00",
     "desligar_ao_finalizar": true,
-    "task_name": "AI Rewards Automacao"
+    "delay_desligar_falha_minutos": 31,
+    "task_name": "AI Rewards Automacao",
+    "fluxo": {
+      "executar_conjunto_diario": true,
+      "executar_pesquisas": true,
+      "executar_edge_tempo": true,
+      "executar_brotato": true
+    }
   }
 }
