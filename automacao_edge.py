@@ -64,6 +64,7 @@ SW_MAXIMIZE = 3
 WM_CLOSE = 0x0010
 MONITORINFOF_PRIMARY = 1
 MONITOR_DEFAULTTONEAREST = 2
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 
 class RECT(ctypes.Structure):
@@ -228,6 +229,61 @@ def obter_titulo_janela(hwnd):
     return buffer.value.strip()
 
 
+def obter_pid_janela(hwnd):
+    if not hwnd:
+        return None
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.GetWindowThreadProcessId.argtypes = [
+        wintypes.HWND,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    pid = wintypes.DWORD(0)
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return int(pid.value) if pid.value else None
+
+
+def obter_caminho_processo_pid(pid):
+    if not pid:
+        return ""
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.QueryFullProcessImageNameW.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        wintypes.LPWSTR,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+    if not handle:
+        return ""
+
+    try:
+        tamanho = wintypes.DWORD(32768)
+        buffer = ctypes.create_unicode_buffer(tamanho.value)
+        if kernel32.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(tamanho)):
+            return buffer.value
+    finally:
+        kernel32.CloseHandle(handle)
+
+    return ""
+
+
+def obter_nome_executavel_janela(hwnd):
+    caminho = obter_caminho_processo_pid(obter_pid_janela(hwnd))
+    if not caminho:
+        return ""
+
+    return Path(caminho).name.lower()
+
+
 def normalizar_titulo_janela(texto):
     texto = "" if texto is None else str(texto)
     texto = unicodedata.normalize("NFKC", texto)
@@ -261,16 +317,17 @@ def titulo_contem_parte(titulo, parte):
 
 
 def janela_parece_edge(hwnd, navegador=None):
-    titulo = obter_titulo_janela(hwnd)
-    if not titulo:
+    nome_executavel = obter_nome_executavel_janela(hwnd)
+    if nome_executavel != "msedge.exe":
         return False
 
+    titulo = obter_titulo_janela(hwnd)
     navegador = navegador or {}
     partes = [
         navegador.get("titulo_janela", "Microsoft Edge"),
         "Microsoft Edge",
     ]
-    return any(titulo_contem_parte(titulo, parte) for parte in partes)
+    return not titulo or any(titulo_contem_parte(titulo, parte) for parte in partes)
 
 
 def encontrar_janela_por_titulo(partes_titulo):
@@ -321,8 +378,25 @@ def encontrar_janela_edge(config, preferir_ativa=True):
         if janela_windows_valida(hwnd_ativo) and janela_parece_edge(hwnd_ativo, navegador):
             return hwnd_ativo, obter_titulo_janela(hwnd_ativo)
 
-    titulo_config = navegador.get("titulo_janela", "Microsoft Edge")
-    return encontrar_janela_por_titulo([titulo_config, "Microsoft Edge"])
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    encontrados = []
+    enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def visitar_janela(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+
+        if janela_parece_edge(hwnd, navegador):
+            encontrados.append((hwnd, obter_titulo_janela(hwnd)))
+            return False
+
+        return True
+
+    user32.EnumWindows(enum_proc(visitar_janela), 0)
+    if not encontrados:
+        return None, None
+
+    return encontrados[0]
 
 
 def aguardar_janela_edge(config, timeout=30, stop_event=None, status_callback=None):
@@ -473,10 +547,8 @@ def forcar_edge_no_segundo_monitor(
         titulo = obter_titulo_janela(hwnd) or "janela armazenada do Edge"
         avisar(status_callback, f"Usando janela Edge da sessao: {titulo}")
     elif navegador.get("buscar_titulo_janela", False):
-        titulo_config = navegador.get("titulo_janela", "Microsoft Edge")
-        partes_titulo = [titulo_config, "Microsoft Edge"]
-        avisar(status_callback, "Buscando janela do Edge pelo titulo antes dos atalhos.")
-        hwnd, titulo = encontrar_janela_por_titulo(partes_titulo)
+        avisar(status_callback, "Buscando janela real do Edge antes dos atalhos.")
+        hwnd, titulo = encontrar_janela_edge(config, preferir_ativa=False)
         if hwnd is not None:
             user32 = ctypes.WinDLL("user32", use_last_error=True)
             user32.ShowWindow(hwnd, SW_RESTORE)
@@ -522,10 +594,10 @@ def forcar_edge_no_segundo_monitor(
             avisar(
                 status_callback,
                 f"Janela ativa nao parece ser Edge ({titulo_ativo or 'sem titulo'}). "
-                "Vou procurar o Edge pelo titulo como fallback.",
+                "Vou procurar uma janela real do Edge como fallback.",
                 "orange",
             )
-            hwnd, titulo = encontrar_janela_por_titulo(["Microsoft Edge"])
+            hwnd, titulo = encontrar_janela_edge(config, preferir_ativa=False)
             if hwnd is None:
                 avisar(
                     status_callback,
