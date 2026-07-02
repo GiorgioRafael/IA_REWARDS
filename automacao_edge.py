@@ -1777,6 +1777,66 @@ def localizar_alvo_visual(config, nome, status_callback=None, regiao=None, stop_
             if deve_parar(stop_event):
                 return None
 
+    if (
+        not resultados
+        and nome == "voltar"
+        and regiao is None
+        and normalizar_regiao_manual(alvo_config.get("regiao")) is None
+    ):
+        virtual_x, virtual_y, virtual_width, virtual_height = obter_bbox_virtual()
+        regiao_fallback = limitar_regiao_virtual(
+            virtual_x,
+            virtual_y,
+            virtual_width,
+            min(240, virtual_height),
+        )
+        if regiao_fallback is not None and regiao_fallback != regiao_config:
+            avisar(
+                status_callback,
+                "Botao voltar nao encontrado na area provavel. "
+                "Tentando fallback na faixa superior inteira da tela.",
+                "orange",
+            )
+            resultados = localizar_templates(
+                templates,
+                confianca=confianca,
+                regiao=regiao_fallback,
+                max_resultados=10,
+                parar_score=score_forte,
+                stop_event=stop_event,
+            )
+            avisar(
+                status_callback,
+                f"Fallback do alvo 'voltar' retornou {len(resultados)} resultado(s).",
+            )
+            if deve_parar(stop_event):
+                return None
+
+            if not resultados and usar_variacoes_deteccao(config, alvo_config):
+                escalas = obter_escalas_flexiveis(alvo_config)
+                confianca_flexivel = obter_confianca_flexivel(alvo_config, confianca)
+                avisar(
+                    status_callback,
+                    "Fallback do alvo 'voltar' nao encontrou no tamanho original. "
+                    "Tentando busca flexivel na faixa superior.",
+                    "orange",
+                )
+                resultados = localizar_templates(
+                    templates,
+                    confianca=confianca_flexivel,
+                    regiao=regiao_fallback,
+                    max_resultados=10,
+                    parar_score=score_forte,
+                    escalas=escalas,
+                    stop_event=stop_event,
+                )
+                avisar(
+                    status_callback,
+                    f"Fallback flexivel do alvo 'voltar' retornou {len(resultados)} resultado(s).",
+                )
+                if deve_parar(stop_event):
+                    return None
+
     if not resultados:
         if not usar_variacoes_deteccao(config, alvo_config):
             avisar(
