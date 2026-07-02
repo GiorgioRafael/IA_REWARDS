@@ -3642,6 +3642,15 @@ def executar_cards_por_imagem(
                 return False
 
             avisar(status_callback, "Painel Rewards confirmado depois de voltar do card.")
+            if fim_scroll_detectado:
+                avisar(
+                    status_callback,
+                    "Fim do scroll tinha sido detectado antes do card. "
+                    "Vou limpar essa marca e continuar procurando para nao pular bonus restantes.",
+                    "orange",
+                )
+            fim_scroll_detectado = False
+            fim_scroll_confirmacoes = 0
             conferindo_apos_card = True
             continue
 
