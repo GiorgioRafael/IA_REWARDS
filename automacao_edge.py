@@ -2112,6 +2112,33 @@ def abrir_extensao_rewards(
     )
 
 
+def voltar_card_por_teclado(config, stop_event=None, status_callback=None):
+    if deve_parar(stop_event):
+        return False
+
+    if pyautogui is None:
+        avisar(
+            status_callback,
+            "Botao voltar nao encontrado e pyautogui nao esta disponivel para usar Alt+Left.",
+            "red",
+        )
+        return False
+
+    avisar(
+        status_callback,
+        "Botao voltar nao encontrado por imagem. Usando Alt+Left como fallback "
+        "e depois vou validar/reabrir o painel Rewards.",
+        "orange",
+    )
+    try:
+        pyautogui.hotkey("alt", "left")
+    except Exception as exc:
+        avisar(status_callback, f"Falha ao enviar Alt+Left: {exc}", "red")
+        return False
+
+    return dormir(0.6, stop_event)
+
+
 def voltar_card_rewards(
     config,
     coordenadas,
@@ -2120,22 +2147,27 @@ def voltar_card_rewards(
     safety_callback=None,
 ):
     if usar_versao_fixa(config):
-        return clicar_coordenada(
+        if clicar_coordenada(
             config,
             coordenadas,
             "voltar",
             stop_event,
             status_callback,
             safety_callback,
-        )
+        ):
+            return True
+        return voltar_card_por_teclado(config, stop_event, status_callback)
 
-    return clicar_alvo_visual(
+    if clicar_alvo_visual(
         config,
         "voltar",
         stop_event=stop_event,
         status_callback=status_callback,
         safety_callback=safety_callback,
-    )
+    ):
+        return True
+
+    return voltar_card_por_teclado(config, stop_event, status_callback)
 
 
 def garantir_painel_rewards_visivel(
