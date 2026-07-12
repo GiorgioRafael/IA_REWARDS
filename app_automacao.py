@@ -144,6 +144,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         self.edge_session_started = False
         self.edge_open_count = 0
         self.edge_restart_count = 0
+        self.edge_search_restart_count = 0
         self.run_id = None
         self.ultimo_pontos_lidos = None
         self.ultima_leitura_pontos = None
@@ -1813,6 +1814,10 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         self.log_execucao(
             f"Reinicios do Edge por recuperacao Rewards: {self.edge_restart_count} vez(es)."
         )
+        self.log_execucao(
+            "Reinicios do Edge por pesquisas sem credito: "
+            f"{self.edge_search_restart_count} vez(es)."
+        )
 
         if self.falhas_visuais:
             self.log_execucao("Screenshots de falha:")
@@ -2839,7 +2844,8 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
                     self.status_com_log("Automacao interrompida ao preparar Edge.", "orange")
                     return False
                 edge_aberto = True
-                if not self.automation_search_logic():
+                consultas_pesquisas_usadas = set()
+                if not self.automation_search_logic(consultas_usadas=consultas_pesquisas_usadas):
                     self.marcar_etapa("Pesquisar com o Bing", "falhou/interrompido")
                     self.capturar_screenshot_falha("pesquisar_com_bing", "Fluxo de pesquisas retornou falha.")
                     self.registrar_pontos_etapa(
@@ -2849,13 +2855,177 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
                         "Pesquisar com o Bing falhou/interrompido.",
                     )
                     return False
-                self.marcar_etapa("Pesquisar com o Bing", "ok")
-                self.registrar_pontos_etapa(
-                    "pesquisar_bing",
-                    "after",
-                    "ok",
-                    "Pesquisar com o Bing concluido.",
-                )
+
+                pesquisas_config = self.config.get("pesquisas", {})
+                validar_credito = bool(pesquisas_config.get("validar_credito_pontos", True))
+                leitura_pesquisas_after = None
+                pontos_pesquisas_before = self.extrair_pontos_leitura(leitura_pesquisas_before)
+                pontos_pesquisas_after = None
+
+                if validar_credito and self.dashboard_ativo():
+                    leitura_pesquisas_after = self.ler_pontos_rewards_para_validacao(
+                        "apos Pesquisar com o Bing"
+                    )
+                    pontos_pesquisas_after = self.extrair_pontos_leitura(leitura_pesquisas_after)
+
+                    deve_recuperar_pesquisas = (
+                        pontos_pesquisas_before is not None
+                        and (
+                            pontos_pesquisas_after is None
+                            or pontos_pesquisas_after <= pontos_pesquisas_before
+                        )
+                        and bool(pesquisas_config.get("retry_sem_credito", True))
+                    )
+                    if deve_recuperar_pesquisas:
+                        retry_count = max(0, int(pesquisas_config.get("retry_search_count", 8)))
+                        max_retentativas = max(
+                            0,
+                            int(pesquisas_config.get("max_retentativas_sem_credito", 3)),
+                        )
+                        delay_retry = max(
+                            0.0,
+                            float(pesquisas_config.get("delay_apos_retry_sem_credito", 6.0)),
+                        )
+
+                        for tentativa_retry in range(1, max_retentativas + 1):
+                            if retry_count <= 0:
+                                break
+
+                            self.status_com_log(
+                                "Pesquisar com o Bing nao confirmou aumento de pontos. "
+                                "Vou fechar e reabrir o Edge antes de tentar novamente "
+                                f"({tentativa_retry}/{max_retentativas}).",
+                                "orange",
+                            )
+                            if not self.reiniciar_edge_para_retry_pesquisas(max_retentativas):
+                                self.status_com_log(
+                                    "Nao consegui reiniciar o Edge para recuperar as pesquisas.",
+                                    "red",
+                                )
+                                break
+
+                            if delay_retry and not self.sleep_interruptivel(delay_retry):
+                                self.marcar_etapa(
+                                    "Pesquisar com o Bing",
+                                    "cancelado",
+                                    "Interrompido antes do retry sem credito.",
+                                )
+                                return False
+
+                            if not self.automation_search_logic(
+                                total_buscas=retry_count,
+                                rotulo=(
+                                    "Retry Pesquisar com o Bing "
+                                    f"{tentativa_retry}/{max_retentativas}"
+                                ),
+                                consultas_usadas=consultas_pesquisas_usadas,
+                            ):
+                                self.marcar_etapa("Pesquisar com o Bing", "falhou/interrompido")
+                                self.capturar_screenshot_falha(
+                                    "pesquisar_com_bing_retry",
+                                    "Retry de pesquisas retornou falha.",
+                                )
+                                self.registrar_pontos_etapa(
+                                    "pesquisar_bing",
+                                    "after",
+                                    "falhou",
+                                    "Pesquisar com o Bing falhou durante retry sem credito.",
+                                )
+                                return False
+
+                            leitura_pesquisas_after = self.ler_pontos_rewards_para_validacao(
+                                "apos retry de Pesquisar com o Bing "
+                                f"{tentativa_retry}/{max_retentativas}"
+                            )
+                            pontos_pesquisas_after = self.extrair_pontos_leitura(
+                                leitura_pesquisas_after
+                            )
+                            if (
+                                pontos_pesquisas_after is not None
+                                and pontos_pesquisas_after > pontos_pesquisas_before
+                            ):
+                                self.status_com_log(
+                                    "Credito das pesquisas confirmado apos reiniciar o Edge.",
+                                    "green",
+                                )
+                                break
+
+                            self.status_com_log(
+                                "Retry concluido, mas os pontos ainda nao aumentaram.",
+                                "orange",
+                            )
+
+                    if pontos_pesquisas_after is None:
+                        self.marcar_etapa(
+                            "Pesquisar com o Bing",
+                            "falhou",
+                            "Nao conseguiu validar pontos apos pesquisas.",
+                        )
+                        self.registrar_pontos_etapa(
+                            "pesquisar_bing",
+                            "after",
+                            "falhou",
+                            "Nao conseguiu validar pontos apos Pesquisar com o Bing.",
+                            leitura_pre_lida=leitura_pesquisas_after,
+                        )
+                        self.status_com_log(
+                            "Nao consegui validar o credito das pesquisas. "
+                            "Vou continuar o fluxo para nao perder as outras etapas.",
+                            "orange",
+                        )
+                    elif (
+                        pontos_pesquisas_before is not None
+                        and pontos_pesquisas_after <= pontos_pesquisas_before
+                    ):
+                        delta_pesquisas = pontos_pesquisas_after - pontos_pesquisas_before
+                        self.capturar_screenshot_falha(
+                            "pesquisar_com_bing_sem_credito",
+                            "Pontos nao aumentaram apos esgotar os reinicios do Edge.",
+                        )
+                        self.marcar_etapa(
+                            "Pesquisar com o Bing",
+                            "falhou",
+                            f"Sem ganho de pontos nas pesquisas (delta {delta_pesquisas}).",
+                        )
+                        self.registrar_pontos_etapa(
+                            "pesquisar_bing",
+                            "after",
+                            "falhou",
+                            "Pesquisar com o Bing nao gerou aumento de pontos apos retry.",
+                            leitura_pre_lida=leitura_pesquisas_after,
+                        )
+                        self.status_com_log(
+                            "Pesquisar com o Bing terminou sem credito no Rewards. "
+                            "Marquei a etapa como falha e vou continuar o restante do fluxo.",
+                            "orange",
+                        )
+                    else:
+                        ganho_pesquisas = (
+                            pontos_pesquisas_after - pontos_pesquisas_before
+                            if pontos_pesquisas_before is not None
+                            else None
+                        )
+                        detalhe_ganho = (
+                            f" Ganhou {ganho_pesquisas} ponto(s)."
+                            if ganho_pesquisas is not None
+                            else ""
+                        )
+                        self.marcar_etapa("Pesquisar com o Bing", "ok", detalhe_ganho.strip() or None)
+                        self.registrar_pontos_etapa(
+                            "pesquisar_bing",
+                            "after",
+                            "ok",
+                            f"Pesquisar com o Bing concluido.{detalhe_ganho}",
+                            leitura_pre_lida=leitura_pesquisas_after,
+                        )
+                else:
+                    self.marcar_etapa("Pesquisar com o Bing", "ok")
+                    self.registrar_pontos_etapa(
+                        "pesquisar_bing",
+                        "after",
+                        "ok",
+                        "Pesquisar com o Bing concluido.",
+                    )
                 edge_aberto = True
 
             if executar_brotato and executar_edge_tempo:
@@ -2922,11 +3092,39 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
             self.log_execucao("Finalizando thread do fluxo completo.")
             self.set_running(False)
 
-    def automation_search_logic(self):
+    def extrair_pontos_leitura(self, leitura):
+        if not isinstance(leitura, dict):
+            return None
+        pontos = leitura.get("pontos")
+        if pontos is None and isinstance(leitura.get("leitura"), dict):
+            pontos = leitura["leitura"].get("pontos")
+        try:
+            return int(pontos)
+        except (TypeError, ValueError):
+            return None
+
+    def ler_pontos_rewards_para_validacao(self, contexto):
+        if not self.dashboard_ativo():
+            return None
+
+        self.status_com_log(f"Dashboard: validando pontos {contexto}.")
+        leitura = self.copiar_pontos_rewards_clipboard(
+            abrir_edge_primeiro=True,
+            fechar_painel=True,
+        )
+        if not leitura.get("ok"):
+            self.status_com_log(
+                f"Dashboard: nao consegui validar pontos {contexto} ({leitura.get('erro')}).",
+                "orange",
+            )
+        return leitura
+
+    def automation_search_logic(self, total_buscas=None, rotulo="Pesquisar com o Bing", consultas_usadas=None):
         pesquisas = self.config["pesquisas"]
-        num_searches = pesquisas["search_count"]
+        num_searches = int(total_buscas if total_buscas is not None else pesquisas["search_count"])
         delay_buscas = pesquisas["delay_entre_buscas"]
-        self.log_execucao(f"Iniciando Pesquisar com o Bing: {num_searches} busca(s).")
+        consultas_usadas = consultas_usadas if consultas_usadas is not None else set()
+        self.log_execucao(f"Iniciando {rotulo}: {num_searches} busca(s).")
 
         for i in range(1, num_searches + 1):
             if not self.esperar_se_pausado():
@@ -2935,13 +3133,14 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
 
             self.status_com_log(f"Busca {i} de {num_searches}...", "blue")
 
-            words = self.get_random_words()
+            words = self.get_random_words(consultas_usadas)
             if not words:
                 self.status_com_log("Erro ao buscar palavras. Tentando novamente...", "red")
                 self.sleep_interruptivel(2)
                 continue
 
             sentence = " ".join(words)
+            consultas_usadas.add(sentence.strip().lower())
             self.log_execucao(f"Texto da busca {i}: {sentence}")
 
             self.focar_barra_busca(pesquisas)
@@ -3438,10 +3637,27 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
 
         return True
 
-    def get_random_words(self):
+    def gerar_consulta_local(self, consultas_usadas=None):
+        consultas_usadas = consultas_usadas or set()
+        consultas = list(PALAVRAS_FALLBACK)
+        random.shuffle(consultas)
+
+        for consulta in consultas:
+            consulta = " ".join(str(consulta).strip().split())
+            if consulta and consulta.lower() not in consultas_usadas:
+                self.log_execucao(f"Consulta local escolhida: {consulta}")
+                return consulta
+
+        consulta = f"{random.choice(PALAVRAS_FALLBACK)} {random.randint(2026, 2099)}"
+        consulta = " ".join(str(consulta).strip().split())
+        self.log_execucao(f"Consultas locais esgotadas. Usando variacao: {consulta}")
+        return consulta
+
+    def get_random_words(self, consultas_usadas=None):
         intervalo = self.config["pesquisas"]["palavras_por_busca"]
         number_of_words = random.randint(intervalo["min"], intervalo["max"])
         url = f"https://random-word-api.vercel.app/api?words={number_of_words}"
+        consultas_usadas = consultas_usadas or set()
 
         try:
             self.log_execucao(f"Buscando {number_of_words} palavra(s) na API.")
@@ -3449,14 +3665,17 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
             response.raise_for_status()
             words = response.json()
             if isinstance(words, list) and words:
-                self.log_execucao(f"Palavras recebidas da API: {words}")
-                return words
+                words = [str(word).strip() for word in words if str(word).strip()]
+                consulta_api = " ".join(words).strip().lower()
+                if words and consulta_api not in consultas_usadas:
+                    self.log_execucao(f"Palavras recebidas da API: {words}")
+                    return words
+                self.log_execucao("API retornou consulta repetida/vazia. Usando fallback local.")
         except requests.exceptions.RequestException:
             self.log_execucao("API de palavras falhou. Usando palavras locais.")
 
-        words = random.choices(PALAVRAS_FALLBACK, k=number_of_words)
-        self.log_execucao(f"Palavras locais escolhidas: {words}")
-        return words
+        consulta_local = self.gerar_consulta_local(consultas_usadas)
+        return [consulta_local] if consulta_local else []
 
     def write_text_letter_by_letter(self, text):
         for letter in text:

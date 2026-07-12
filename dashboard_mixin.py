@@ -438,6 +438,7 @@ class DashboardMixin:
         fechar_painel=True,
         reabrir_se_nao_encontrar=True,
         reutilizar_ultima_leitura=False,
+        leitura_pre_lida=None,
     ):
         try:
             if not self.dashboard_ativo():
@@ -447,7 +448,12 @@ class DashboardMixin:
                 self.iniciar_run_id()
 
             self.status_com_log(f"Dashboard: lendo pontos '{stage}/{phase}'.")
-            if reutilizar_ultima_leitura and self.ultima_leitura_pontos is not None:
+            if leitura_pre_lida is not None:
+                leitura = copy.deepcopy(leitura_pre_lida)
+                self.status_com_log(
+                    f"Dashboard: registrando leitura ja coletada para '{stage}/{phase}'."
+                )
+            elif reutilizar_ultima_leitura and self.ultima_leitura_pontos is not None:
                 leitura_origem = self.ultima_leitura_pontos
                 leitura = copy.deepcopy(leitura_origem.get("leitura") or {})
                 leitura.update(
@@ -572,6 +578,7 @@ class DashboardMixin:
         fechar_painel=True,
         reabrir_se_nao_encontrar=True,
         reutilizar_ultima_leitura=False,
+        leitura_pre_lida=None,
     ):
         return self.registrar_pontos_dashboard(
             stage,
@@ -582,5 +589,6 @@ class DashboardMixin:
             fechar_painel=fechar_painel,
             reabrir_se_nao_encontrar=reabrir_se_nao_encontrar,
             reutilizar_ultima_leitura=reutilizar_ultima_leitura,
+            leitura_pre_lida=leitura_pre_lida,
         )
 

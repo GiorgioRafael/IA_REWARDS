@@ -20,6 +20,7 @@ class EdgeSessionMixin:
         self.edge_session_started = False
         self.edge_open_count = 0
         self.edge_restart_count = 0
+        self.edge_search_restart_count = 0
 
     def sessao_edge_valida(self):
         return (
@@ -121,35 +122,39 @@ class EdgeSessionMixin:
             stop_event=self.stop_automation,
         )
 
-    def reiniciar_edge_por_estado_rewards(self, motivo):
-        estado_config = self.config.get("rewards_estado", {})
-        if not estado_config.get("permitir_reinicio_edge_erro", True):
+    def _reiniciar_sessao_edge_controlado(
+        self,
+        motivo,
+        limite,
+        contador_attr,
+        contexto,
+        capturar_screenshot=False,
+    ):
+        limite = max(0, int(limite))
+        reinicios = int(getattr(self, contador_attr, 0))
+        if reinicios >= limite:
             self.status_com_log(
-                "Rewards ficou em estado inesperado, mas reinicio automatico do Edge esta desativado.",
+                f"Limite de reinicios do Edge para {contexto} atingido ({limite}).",
                 "red",
             )
             return False
 
-        limite = max(0, int(estado_config.get("max_reinicios_edge", 1)))
-        if self.edge_restart_count >= limite:
-            self.status_com_log(
-                f"Limite de reinicios do Edge por erro Rewards atingido ({limite}).",
-                "red",
-            )
-            return False
-
-        self.edge_restart_count += 1
+        reinicios += 1
+        setattr(self, contador_attr, reinicios)
         self.status_com_log(
-            f"Recuperacao Rewards: reiniciando Edge por estado '{motivo}' "
-            f"({self.edge_restart_count}/{limite}).",
+            f"{contexto}: fechando e reabrindo Edge por '{motivo}' "
+            f"({reinicios}/{limite}).",
             "orange",
         )
-        self.capturar_screenshot_falha(
-            f"rewards_estado_{motivo}",
-            "Estado Rewards inesperado antes de reiniciar Edge.",
-        )
+        if capturar_screenshot:
+            self.capturar_screenshot_falha(
+                f"rewards_estado_{motivo}",
+                "Estado Rewards inesperado antes de reiniciar Edge.",
+            )
 
         hwnd_antigo = self.edge_session_hwnd
+        if hwnd_antigo is None or not janela_windows_valida(hwnd_antigo):
+            hwnd_antigo, _ = encontrar_janela_edge(self.config, preferir_ativa=True)
         if hwnd_antigo is not None and janela_windows_valida(hwnd_antigo):
             if not fechar_janela_edge(
                 hwnd_antigo,
@@ -163,14 +168,40 @@ class EdgeSessionMixin:
         self.edge_session_started = False
         limpar_cache_execucao(self.config)
 
+        estado_config = self.config.get("rewards_estado", {})
         delay = float(estado_config.get("delay_apos_reiniciar_edge", 4.0))
         if delay > 0:
             self.status_com_log(f"Aguardando {delay:.1f}s antes de reabrir Edge.")
             if not self.sleep_interruptivel(delay):
                 return False
 
-        self.status_com_log("Reabrindo Edge apos recuperacao do Rewards.")
+        self.status_com_log(f"Reabrindo Edge para {contexto}.")
         return self.garantir_sessao_edge()
+
+    def reiniciar_edge_por_estado_rewards(self, motivo):
+        estado_config = self.config.get("rewards_estado", {})
+        if not estado_config.get("permitir_reinicio_edge_erro", True):
+            self.status_com_log(
+                "Rewards ficou em estado inesperado, mas reinicio automatico do Edge esta desativado.",
+                "red",
+            )
+            return False
+
+        return self._reiniciar_sessao_edge_controlado(
+            motivo=motivo,
+            limite=estado_config.get("max_reinicios_edge", 1),
+            contador_attr="edge_restart_count",
+            contexto="Recuperacao Rewards",
+            capturar_screenshot=True,
+        )
+
+    def reiniciar_edge_para_retry_pesquisas(self, limite):
+        return self._reiniciar_sessao_edge_controlado(
+            motivo="pesquisas_sem_credito",
+            limite=limite,
+            contador_attr="edge_search_restart_count",
+            contexto="Recuperacao das pesquisas",
+        )
 
     def abrir_painel_rewards_sessao(self, tentativas=2):
         coordenadas = carregar_coordenadas(self.config)
