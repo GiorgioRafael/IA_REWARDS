@@ -181,6 +181,8 @@
     "forcar_segundo_monitor": true,
     "buscar_titulo_janela": false,
     "fechar_popup_restaurar_paginas": true,
+    "normalizar_saida_edge": true,
+    "edge_user_data_dir": null,
     "titulo_janela": "Microsoft Edge",
     "abrir_timeout_segundos": 30,
     "abrir_direto_primeiro": true,
@@ -190,7 +192,12 @@
     "permitir_reinicio_edge_erro": true,
     "max_reinicios_edge": 1,
     "delay_apos_reiniciar_edge": 4.0,
-    "url_rewards": "https://rewards.bing.com/"
+    "url_rewards": "https://rewards.bing.com/",
+    "usar_fallback_web_painel": true,
+    "fallback_web_bing_url": "https://www.bing.com/",
+    "fallback_web_painel_url": "https://www.bing.com/rewards/panelflyout?partnerId=BrowserExtensions",
+    "fallback_web_delay_bing_segundos": 4.0,
+    "fallback_web_delay_painel_segundos": 6.0
   },
   "edge_tracker": {
     "treino_dir": "assets/treino_edge_tracker_estados",
@@ -363,7 +370,7 @@
     },
     "search_count": 23,
     "executar_conjunto_diario": true,
-    "executar_pesquisas": false,
+    "executar_pesquisas": true,
     "usar_ctrl_l_desktop": true,
     "delay_apos_conjunto_diario": {
       "min": 2.0,
@@ -376,10 +383,15 @@
     "palavras_por_busca": {
       "min": 1,
       "max": 3
-    }
+    },
+    "validar_credito_pontos": true,
+    "retry_sem_credito": true,
+    "retry_search_count": 8,
+    "max_retentativas_sem_credito": 3,
+    "delay_apos_retry_sem_credito": 6.0
   },
   "edge_tempo": {
-    "executar": false,
+    "executar": true,
     "url_video": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
     "primeira_espera_minutos": 36.0,
     "margem_extra_minutos": 1.0,
@@ -388,8 +400,9 @@
     "delay_apos_reabrir_edge": 2.0
   },
   "brotato": {
-    "executar": false,
-    "app_busca": "Brotato",
+    "executar": true,
+    "app_busca": "minecraft for windows",
+    "ignorar_verificacoes": true,
     "tempo_minutos": 17.0,
     "delay_apos_enter": 25.0,
     "menu_timeout_segundos": 120.0,
@@ -397,7 +410,7 @@
   },
   "timer_automatico": {
     "horas": 0,
-    "minutos": 15,
+    "minutos": 0,
     "segundos": 20,
     "desligar_delay_segundos": 30
   },

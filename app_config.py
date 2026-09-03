@@ -135,6 +135,8 @@ DEFAULT_CONFIG = {
         "forcar_segundo_monitor": False,
         "buscar_titulo_janela": False,
         "fechar_popup_restaurar_paginas": True,
+        "normalizar_saida_edge": True,
+        "edge_user_data_dir": None,
         "titulo_janela": "Microsoft Edge",
         "abrir_timeout_segundos": 30,
         "abrir_direto_primeiro": True,
@@ -145,6 +147,11 @@ DEFAULT_CONFIG = {
         "max_reinicios_edge": 1,
         "delay_apos_reiniciar_edge": 4.0,
         "url_rewards": "https://rewards.bing.com/",
+        "usar_fallback_web_painel": True,
+        "fallback_web_bing_url": "https://www.bing.com/",
+        "fallback_web_painel_url": "https://www.bing.com/rewards/panelflyout?partnerId=BrowserExtensions",
+        "fallback_web_delay_bing_segundos": 4.0,
+        "fallback_web_delay_painel_segundos": 6.0,
     },
     "edge_tracker": {
         "treino_dir": "assets/treino_edge_tracker_estados",
@@ -284,6 +291,7 @@ DEFAULT_CONFIG = {
     "brotato": {
         "executar": False,
         "app_busca": "Brotato",
+        "ignorar_verificacoes": False,
         "tempo_minutos": 17,
         "delay_apos_enter": 10,
         "menu_timeout_segundos": 120,

@@ -80,18 +80,27 @@ from training_detection_mixin import TrainingDetectionMixin
 AUTO_TASK_DEFAULT_NAME = "AI Rewards Automacao"
 
 
-def focar_janela_por_titulo(parte_titulo):
+def focar_janela_por_titulo(partes_titulo, ignorar_edge_config=None):
     try:
         user32 = ctypes.WinDLL("user32", use_last_error=True)
         enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-        alvo = (parte_titulo or "").strip().lower()
-        if not alvo:
+        if isinstance(partes_titulo, str):
+            alvos = [partes_titulo]
+        else:
+            alvos = list(partes_titulo or [])
+        alvos = [str(alvo).strip().lower() for alvo in alvos if str(alvo).strip()]
+        if not alvos:
             return None
 
         encontrados = []
 
         def visitar_janela(hwnd, _lparam):
             if not user32.IsWindowVisible(hwnd):
+                return True
+            if ignorar_edge_config and janela_parece_edge(
+                hwnd,
+                ignorar_edge_config.get("navegador", {}),
+            ):
                 return True
 
             tamanho = user32.GetWindowTextLengthW(hwnd)
@@ -101,7 +110,8 @@ def focar_janela_por_titulo(parte_titulo):
             buffer = ctypes.create_unicode_buffer(tamanho + 1)
             user32.GetWindowTextW(hwnd, buffer, tamanho + 1)
             titulo = buffer.value.strip()
-            if alvo in titulo.lower():
+            titulo_normalizado = titulo.lower()
+            if any(alvo in titulo_normalizado for alvo in alvos):
                 encontrados.append((hwnd, titulo))
                 return False
 
@@ -341,6 +351,9 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         )
         self.brotato_app_busca_var = tk.StringVar(
             value=brotato.get("app_busca", DEFAULT_CONFIG["brotato"]["app_busca"])
+        )
+        self.brotato_ignorar_verificacoes_var = tk.BooleanVar(
+            value=brotato.get("ignorar_verificacoes", False)
         )
         self.brotato_tempo_minutos_var = tk.StringVar(
             value=str(brotato.get("tempo_minutos", 17))
@@ -771,42 +784,49 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             row=1, column=1, columnspan=3, sticky="ew", padx=5, pady=5
         )
 
-        ttk.Label(brotato_frame, text="Timer sem Edge (min):").grid(
-            row=2, column=0, sticky="w", padx=5, pady=5
-        )
-        ttk.Entry(brotato_frame, textvariable=self.brotato_tempo_minutos_var, width=8).grid(
-            row=2, column=1, sticky="w", padx=5, pady=5
-        )
+        ttk.Checkbutton(
+            brotato_frame,
+            text="Ignorar verificacoes visuais (abrir app e voltar ao Edge)",
+            variable=self.brotato_ignorar_verificacoes_var,
+        ).grid(row=2, column=0, columnspan=4, sticky="w", padx=5, pady=5)
 
-        ttk.Label(brotato_frame, text="Delay apos abrir (seg):").grid(
+        ttk.Label(brotato_frame, text="Timer sem Edge (min):").grid(
             row=3, column=0, sticky="w", padx=5, pady=5
         )
-        ttk.Entry(brotato_frame, textvariable=self.brotato_delay_apos_enter_var, width=8).grid(
+        ttk.Entry(brotato_frame, textvariable=self.brotato_tempo_minutos_var, width=8).grid(
             row=3, column=1, sticky="w", padx=5, pady=5
         )
 
-        ttk.Label(brotato_frame, text="Timeout menu (seg):").grid(
+        ttk.Label(brotato_frame, text="Delay apos abrir (seg):").grid(
             row=4, column=0, sticky="w", padx=5, pady=5
         )
-        ttk.Entry(brotato_frame, textvariable=self.brotato_menu_timeout_var, width=8).grid(
+        ttk.Entry(brotato_frame, textvariable=self.brotato_delay_apos_enter_var, width=8).grid(
             row=4, column=1, sticky="w", padx=5, pady=5
         )
+
+        ttk.Label(brotato_frame, text="Timeout menu (seg):").grid(
+            row=5, column=0, sticky="w", padx=5, pady=5
+        )
+        ttk.Entry(brotato_frame, textvariable=self.brotato_menu_timeout_var, width=8).grid(
+            row=5, column=1, sticky="w", padx=5, pady=5
+        )
         ttk.Label(brotato_frame, text="Timeout fechar (seg):").grid(
-            row=4, column=2, sticky="w", padx=5, pady=5
+            row=5, column=2, sticky="w", padx=5, pady=5
         )
         ttk.Entry(brotato_frame, textvariable=self.brotato_fechar_timeout_var, width=8).grid(
-            row=4, column=3, sticky="w", padx=5, pady=5
+            row=5, column=3, sticky="w", padx=5, pady=5
         )
 
         ttk.Label(
             brotato_frame,
             text=(
                 "Com Navegar com Edge ativo, o jogo abre antes da espera do Edge e fecha "
-                "antes da verificação do Rewards. O timer de 17 minutos é usado apenas sem Edge."
+                "antes da verificação do Rewards. No modo sem verificacoes, ele so abre o app "
+                "configurado e pula Gamer Tag/icone da barra."
             ),
             foreground="gray",
             wraplength=620,
-        ).grid(row=5, column=0, columnspan=4, sticky="w", padx=5, pady=(8, 3))
+        ).grid(row=6, column=0, columnspan=4, sticky="w", padx=5, pady=(8, 3))
 
         coords_frame = ttk.LabelFrame(
             self.search_tab, text="Pesquisar com o Bing > Barra de busca", padding="10"
@@ -1679,6 +1699,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             brotato = self.config.setdefault("brotato", {})
             brotato["executar"] = self.executar_brotato_var.get()
             brotato["app_busca"] = self.brotato_app_busca_var.get().strip() or "Brotato"
+            brotato["ignorar_verificacoes"] = self.brotato_ignorar_verificacoes_var.get()
             brotato["tempo_minutos"] = self.parse_float(
                 self.brotato_tempo_minutos_var, "Timer Brotato"
             )
@@ -2748,6 +2769,7 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
             executar_edge_tempo = self.config.get("edge_tempo", {}).get("executar", False)
             executar_brotato = self.config.get("brotato", {}).get("executar", False)
             edge_aberto = False
+            houve_falha_parcial = False
             self.brotato_aberto = False
 
             if executar_conjunto:
@@ -2803,27 +2825,39 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
                         "Conjunto diario falhou/interrompido.",
                         abrir_edge_primeiro=False,
                     )
-                    self.status_com_log("Automacao interrompida.", "orange")
-                    return False
+                    if self.stop_automation.is_set():
+                        self.status_com_log("Automacao interrompida.", "orange")
+                        return False
 
-                self.marcar_etapa("Conjunto diario", "ok")
-                self.registrar_pontos_etapa(
-                    "conjunto_diario",
-                    "after",
-                    "ok",
-                    "Conjunto diario concluido.",
-                    abrir_edge_primeiro=False,
-                )
+                    houve_falha_parcial = True
+                    self.status_com_log(
+                        "Conjunto diario falhou, mas vou continuar o fluxo para nao perder as outras etapas.",
+                        "orange",
+                    )
+                    self.pressionar_esc_interno()
+                else:
+                    self.marcar_etapa("Conjunto diario", "ok")
+                    self.registrar_pontos_etapa(
+                        "conjunto_diario",
+                        "after",
+                        "ok",
+                        "Conjunto diario concluido.",
+                        abrir_edge_primeiro=False,
+                    )
+
                 edge_aberto = True
                 if executar_pesquisas:
-                    self.status_com_log("Conjunto diário concluído. Iniciando Pesquisar com o Bing...")
+                    if houve_falha_parcial:
+                        self.status_com_log("Seguindo para Pesquisar com o Bing...")
+                    else:
+                        self.status_com_log("Conjunto diário concluído. Iniciando Pesquisar com o Bing...")
                     if not self.sleep_intervalo(
                         self.config["pesquisas"]["delay_apos_conjunto_diario"]
                     ):
                         self.marcar_etapa("Pesquisar com o Bing", "cancelado", "Interrompido antes de iniciar.")
                         self.status_com_log("Automacao interrompida pelo usuario.", "orange")
                         return False
-                else:
+                elif not houve_falha_parcial:
                     self.status_com_log("Conjunto diário concluído. Pesquisar com o Bing desativado.", "green")
 
             if executar_pesquisas:
@@ -3077,6 +3111,13 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
                 self.status_com_log("Nenhuma funcao primaria selecionada.", "orange")
                 return False
 
+            if houve_falha_parcial:
+                self.status_com_log(
+                    "Fluxo terminou, mas o Conjunto diario falhou. Veja o resumo final.",
+                    "orange",
+                )
+                return False
+
             self.status_com_log("Fluxo selecionado concluido.", "green")
             return True
         except SystemExit as exc:
@@ -3213,6 +3254,59 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
         self.log_execucao(f"Aguardando Brotato iniciar por {delay:.1f}s.")
         return self.sleep_interruptivel(delay)
 
+    def jogo_ignora_verificacoes_visuais(self):
+        return bool(self.config.get("brotato", {}).get("ignorar_verificacoes", False))
+
+    def termos_janela_jogo(self):
+        app_busca = self.config.get("brotato", {}).get("app_busca", "Brotato").strip() or "Brotato"
+        termos = [app_busca]
+        app_normalizado = app_busca.lower()
+        substituicoes = (
+            " for windows",
+            " para windows",
+            " windows",
+        )
+        base = app_busca
+        for trecho in substituicoes:
+            base = base.replace(trecho, "").replace(trecho.title(), "")
+        base = base.strip()
+        if base and base.lower() not in {termo.lower() for termo in termos}:
+            termos.append(base)
+        if "minecraft" in app_normalizado and "minecraft" not in {termo.lower() for termo in termos}:
+            termos.append("Minecraft")
+        if "brotato" in app_normalizado and "brotato" not in {termo.lower() for termo in termos}:
+            termos.append("Brotato")
+        return termos
+
+    def focar_jogo_por_janela(self):
+        termos = self.termos_janela_jogo()
+        titulo = focar_janela_por_titulo(termos, ignorar_edge_config=self.config)
+        if titulo:
+            self.status_com_log(f"Jogo focado pela janela aberta: {titulo}", "green")
+            return self.sleep_interruptivel(0.7)
+
+        self.log_execucao(
+            "Nao encontrei a janela do jogo pelo titulo: " + ", ".join(termos)
+        )
+        return False
+
+    def voltar_para_edge_apos_abrir_jogo(self):
+        if not getattr(self, "edge_session_hwnd", None):
+            self.log_execucao(
+                "Sem sessao Edge ativa para retornar apos abrir o jogo; o proximo passo abrira/focara Edge se precisar."
+            )
+            return True
+
+        self.status_com_log("Voltando para a sessao Edge depois de abrir o jogo...")
+        if self.garantir_sessao_edge():
+            return self.sleep_interruptivel(0.5)
+
+        self.status_com_log(
+            "Nao consegui voltar para o Edge apos abrir o jogo. Vou continuar e deixar a proxima etapa recuperar.",
+            "orange",
+        )
+        return True
+
     def aguardar_brotato_menu(self):
         brotato = self.config.get("brotato", {})
         timeout = float(brotato.get("menu_timeout_segundos", 120))
@@ -3283,13 +3377,10 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
 
     def focar_brotato_pela_barra(self):
         brotato = self.config.get("brotato", {})
-        app_busca = brotato.get("app_busca", "Brotato").strip() or "Brotato"
         timeout = float(brotato.get("fechar_timeout_segundos", 20))
 
-        titulo = focar_janela_por_titulo(app_busca)
-        if titulo:
-            self.status_com_log(f"Brotato focado pela janela aberta: {titulo}", "green")
-            return self.sleep_interruptivel(0.7)
+        if self.focar_jogo_por_janela():
+            return True
 
         self.log_execucao(
             "Nao encontrei uma janela do Brotato pelo titulo. Tentando pelo icone da barra."
@@ -3332,7 +3423,15 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
             return True
 
         self.status_com_log("Fechando Brotato com Alt+F4...")
-        if not self.focar_brotato_pela_barra():
+        if self.jogo_ignora_verificacoes_visuais():
+            if not self.focar_jogo_por_janela():
+                self.status_com_log(
+                    "Modo sem verificacoes: nao achei a janela do jogo para fechar. Vou seguir sem bloquear o fluxo.",
+                    "orange",
+                )
+                self.brotato_aberto = False
+                return True
+        elif not self.focar_brotato_pela_barra():
             return False
         if not self.esperar_se_pausado():
             return False
@@ -3356,13 +3455,37 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
             self.marcar_etapa("Jogar PC (Brotato)", "falhou", "Nao abriu o jogo.")
             self.capturar_screenshot_falha("brotato_abrir", "Falha ao abrir Brotato.")
             return False
-        if not self.aguardar_brotato_menu():
+        self.brotato_aberto = True
+
+        if self.jogo_ignora_verificacoes_visuais():
+            self.status_com_log(
+                "Modo sem templates visuais ativo: confirmando a janela real do jogo.",
+                "green",
+            )
+            if not self.focar_jogo_por_janela():
+                self.marcar_etapa(
+                    "Jogar PC (Brotato)",
+                    "falhou",
+                    "O comando foi enviado, mas nenhuma janela do jogo foi encontrada.",
+                )
+                self.capturar_screenshot_falha(
+                    "brotato_janela",
+                    "O jogo nao abriu ou sua janela nao foi confirmada.",
+                )
+                self.brotato_aberto = False
+                return False
+            self.voltar_para_edge_apos_abrir_jogo()
+        elif not self.aguardar_brotato_menu():
             self.marcar_etapa("Jogar PC (Brotato)", "falhou", "Menu/Gamer Tag nao detectado.")
             self.capturar_screenshot_falha("brotato_menu", "Nao detectou Gamer Tag/Menu.")
             return False
 
         if not com_timer:
-            self.marcar_etapa("Jogar PC (Brotato)", "ok", "Aberto em background para rodar junto com Edge.")
+            self.marcar_etapa(
+                "Jogar PC (Brotato)",
+                "em execucao",
+                "Janela confirmada; aberto em background junto com Edge.",
+            )
             self.status_com_log("Brotato aberto para rodar junto com Navegar com Edge.")
             return True
 
@@ -3420,6 +3543,11 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
             if fechar_brotato_antes_verificar:
                 if not self.garantir_brotato_fechado():
                     return False
+                self.marcar_etapa(
+                    "Jogar PC (Brotato)",
+                    "ok",
+                    f"Janela confirmada e mantida aberta por {espera_atual:.1f} min.",
+                )
                 self.status_com_log("Refocando Edge antes de verificar o Rewards...")
                 if not self.garantir_sessao_edge():
                     self.capturar_screenshot_falha("edge_refocar_verificacao", "Falha ao refocar a sessao unica do Edge.")

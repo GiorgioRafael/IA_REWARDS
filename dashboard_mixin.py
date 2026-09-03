@@ -8,6 +8,7 @@ import pyautogui as pa
 from pynput import keyboard
 
 from automacao_edge import (
+    copiar_saldo_rewards_dom,
     limpar_cache_execucao,
     obter_cache_painel_rewards,
     obter_coordenada_alvo_visual,
@@ -172,6 +173,35 @@ class DashboardMixin:
             }
 
         anchor_x, anchor_y = anchor
+        texto_dom = copiar_saldo_rewards_dom(
+            self.config,
+            stop_event=self.stop_automation,
+            status_callback=self.status_com_log,
+        )
+        if texto_dom is not None:
+            pontos_dom = normalizar_pontos_texto(texto_dom)
+            valido_dom, motivo_dom = validar_leitura_pontos(
+                texto_dom,
+                pontos_dom,
+                leitura,
+                self.ultimo_pontos_lidos,
+            )
+            if valido_dom:
+                return {
+                    "ok": True,
+                    "pontos": pontos_dom,
+                    "texto": texto_dom,
+                    "metodo": "rewards_flyout_view_model",
+                    "origem_posicao": "dom_oficial",
+                    "anchor": {"x": anchor_x, "y": anchor_y},
+                    "click": None,
+                    "candidatos": [],
+                }
+            self.log_execucao(
+                "Dashboard: saldo do modelo oficial rejeitado "
+                f"({motivo_dom}); texto={texto_dom!r}; pontos={pontos_dom}."
+            )
+
         candidatos = self.montar_candidatos_leitura_pontos(anchor_x, anchor_y, leitura)
         if not candidatos:
             return {

@@ -1,6 +1,7 @@
 import argparse
 import ctypes
 import json
+import os
 import random
 import re
 import subprocess
@@ -430,6 +431,124 @@ def aguardar_janela_edge(config, timeout=30, stop_event=None, status_callback=No
     return None, None
 
 
+def diretorio_user_data_edge(config):
+    navegador = config.get("navegador", {}) if isinstance(config, dict) else {}
+    caminho = navegador.get("edge_user_data_dir")
+    if caminho:
+        return Path(str(caminho)).expanduser()
+
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if not local_appdata:
+        return None
+
+    return Path(local_appdata) / "Microsoft" / "Edge" / "User Data"
+
+
+def edge_em_execucao():
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        resultado = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq msedge.exe", "/NH"],
+            capture_output=True,
+            creationflags=flags,
+        )
+    except Exception:
+        return False
+
+    return b"msedge.exe" in (resultado.stdout or b"").lower()
+
+
+def normalizar_saida_perfis_edge(config, status_callback=None):
+    """Marca a sessao anterior dos perfis do Edge como encerrada de forma limpa.
+
+    Quando o Edge e encerrado a forca (o desligamento agendado faz isso), o perfil
+    fica com exit_type='Crashed' e o Edge abre com o popup 'Restaurar paginas'.
+    Esse popup cobre o link 'Exibir painel' no topo do painel Rewards e derruba a
+    execucao inteira, entao e mais seguro evitar que ele apareca.
+    """
+    navegador = config.get("navegador", {}) if isinstance(config, dict) else {}
+    if not bool(navegador.get("normalizar_saida_edge", True)):
+        return
+
+    user_data = diretorio_user_data_edge(config)
+    if user_data is None or not user_data.is_dir():
+        avisar(
+            status_callback,
+            "Nao localizei a pasta de perfis do Edge para normalizar a saida anterior.",
+            "orange",
+        )
+        return
+
+    if edge_em_execucao():
+        avisar(
+            status_callback,
+            "Edge ja esta em execucao. Nao vou mexer no estado de saida dos perfis.",
+        )
+        return
+
+    ajustados = []
+    for pasta in sorted(user_data.iterdir()):
+        if not pasta.is_dir():
+            continue
+
+        if pasta.name != "Default" and not pasta.name.startswith("Profile "):
+            continue
+
+        preferencias = pasta / "Preferences"
+        if not preferencias.is_file():
+            continue
+
+        try:
+            dados = json.loads(preferencias.read_text(encoding="utf-8"))
+        except Exception as exc:
+            avisar(
+                status_callback,
+                f"Nao consegui ler as preferencias do perfil '{pasta.name}': {exc}",
+                "orange",
+            )
+            continue
+
+        perfil = dados.get("profile")
+        if not isinstance(perfil, dict):
+            continue
+
+        if perfil.get("exit_type") == "Normal" and perfil.get("exited_cleanly") is not False:
+            continue
+
+        anterior = perfil.get("exit_type")
+        perfil["exit_type"] = "Normal"
+        perfil["exited_cleanly"] = True
+
+        temporario = pasta / "Preferences.airewards.tmp"
+        try:
+            temporario.write_text(
+                json.dumps(dados, ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            temporario.replace(preferencias)
+        except Exception as exc:
+            avisar(
+                status_callback,
+                f"Nao consegui normalizar a saida do perfil '{pasta.name}': {exc}",
+                "orange",
+            )
+            try:
+                temporario.unlink()
+            except OSError:
+                pass
+            continue
+
+        ajustados.append(f"{pasta.name} ({anterior} -> Normal)")
+
+    if ajustados:
+        avisar(
+            status_callback,
+            "Saida anterior do Edge normalizada para evitar o popup 'Restaurar paginas': "
+            + ", ".join(ajustados),
+            "green",
+        )
+
+
 def abrir_edge_direto(status_callback=None):
     avisar(
         status_callback,
@@ -734,6 +853,7 @@ def abrir_edge(config, stop_event=None, status_callback=None):
         return False
 
     limpar_cache_alvos_visuais(config)
+    normalizar_saida_perfis_edge(config, status_callback=status_callback)
     espera_inicial = max(0.0, float(tempos["apos_enter"]))
     timeout_total = max(
         espera_inicial,
@@ -797,7 +917,9 @@ def abrir_edge(config, stop_event=None, status_callback=None):
             "O menu iniciar/search nao entregou uma janela do Edge. Vou tentar o fallback direto.",
             "orange",
         )
-        pyautogui.press("esc")
+        # Nao envie ESC aqui: o app usa essa tecla como atalho global de
+        # cancelamento e o pynput tambem recebe teclas geradas pelo pyautogui.
+        # A abertura direta do Edge ja assume o foco quando a janela aparece.
         if not dormir(0.5, stop_event):
             return False
         if not abrir_edge_direto(status_callback):
@@ -1020,6 +1142,10 @@ def salvar_cache_painel_rewards(config, regiao):
     if painel is not None:
         obter_cache_execucao(config)["painel_rewards"] = painel
     return painel
+
+
+def limpar_cache_painel_rewards(config):
+    obter_cache_execucao(config)["painel_rewards"] = None
 
 
 def obter_cache_painel_rewards(config):
@@ -1509,6 +1635,18 @@ def detectar_estado_tracker_edge(
     }
 
 
+def pagina_rewards_completa_ativa(config):
+    hwnd_ativo = obter_janela_ativa()
+    if not (
+        janela_windows_valida(hwnd_ativo)
+        and janela_parece_edge(hwnd_ativo, config.get("navegador", {}))
+    ):
+        return False
+
+    titulo = normalizar_titulo_janela(obter_titulo_janela(hwnd_ativo))
+    return "rewards" in titulo
+
+
 def detectar_estado_rewards_atual(config, status_callback=None, stop_event=None):
     if deve_parar(stop_event):
         return {"estado": "interrompido", "ok": False}
@@ -1536,7 +1674,14 @@ def detectar_estado_rewards_atual(config, status_callback=None, stop_event=None)
         permitir_cache_sem_deteccao=False,
     )
 
-    if x_exibir is not None and y_exibir is not None:
+    if "rewards" in titulo_normalizado:
+        estado = {
+            "estado": "pagina_rewards_completa",
+            "ok": False,
+            "titulo": titulo,
+            "painel": painel,
+        }
+    elif x_exibir is not None and y_exibir is not None:
         estado = {
             "estado": "popup_rewards_ok",
             "ok": True,
@@ -1544,17 +1689,11 @@ def detectar_estado_rewards_atual(config, status_callback=None, stop_event=None)
             "painel": painel,
             "anchor_exibir_painel": {"x": int(x_exibir), "y": int(y_exibir)},
         }
-    elif "rewards" in titulo_normalizado:
-        estado = {
-            "estado": "pagina_rewards_completa",
-            "ok": False,
-            "titulo": titulo,
-            "painel": painel,
-        }
     elif painel is not None:
         estado = {
             "estado": "popup_rewards_ok_sem_exibir_painel",
-            "ok": True,
+            # Sem a ancora treinada, um card claro da pagina pode parecer o popup.
+            "ok": False,
             "titulo": titulo,
             "painel": painel,
         }
@@ -2184,6 +2323,209 @@ def abrir_extensao_rewards(
     )
 
 
+def abrir_painel_rewards_fallback_web(
+    config,
+    stop_event=None,
+    status_callback=None,
+):
+    """Recria no Bing o mesmo iframe usado pela extensao Rewards."""
+    if deve_parar(stop_event):
+        return False
+
+    estado_config = config.get("rewards_estado", {})
+    if not bool(estado_config.get("usar_fallback_web_painel", True)):
+        return False
+
+    hwnd_ativo = obter_janela_ativa()
+    if not (
+        janela_windows_valida(hwnd_ativo)
+        and janela_parece_edge(hwnd_ativo, config.get("navegador", {}))
+    ):
+        avisar(
+            status_callback,
+            "Fallback web do Rewards abortado: a janela ativa nao e o Microsoft Edge.",
+            "red",
+        )
+        return False
+
+    try:
+        import pyperclip
+    except Exception as exc:
+        avisar(
+            status_callback,
+            f"Fallback web do Rewards indisponivel (clipboard): {exc}",
+            "red",
+        )
+        return False
+
+    bing_url = str(
+        estado_config.get("fallback_web_bing_url") or "https://www.bing.com/"
+    ).strip()
+    painel_url = str(
+        estado_config.get("fallback_web_painel_url")
+        or "https://www.bing.com/rewards/panelflyout?partnerId=BrowserExtensions"
+    ).strip()
+    delay_bing = max(
+        0.0,
+        float(estado_config.get("fallback_web_delay_bing_segundos", 4.0)),
+    )
+    delay_painel = max(
+        0.0,
+        float(estado_config.get("fallback_web_delay_painel_segundos", 6.0)),
+    )
+
+    clipboard_anterior = None
+    try:
+        clipboard_anterior = pyperclip.paste()
+    except Exception:
+        pass
+
+    try:
+        avisar(
+            status_callback,
+            "Extensao Rewards nao respondeu. Abrindo fallback oficial dentro do Bing.",
+            "orange",
+        )
+        # Ctrl+L fecha o flyout e foca a barra de endereco. Evite ESC porque o
+        # listener global do app nao consegue diferenciar a tecla sintetica de
+        # um cancelamento real solicitado pelo usuario.
+        pyautogui.hotkey("ctrl", "l")
+        pyperclip.copy(bing_url)
+        pyautogui.hotkey("ctrl", "v")
+        pyautogui.press("enter")
+        if not dormir(delay_bing, stop_event):
+            return False
+
+        hwnd_ativo = obter_janela_ativa()
+        if not (
+            janela_windows_valida(hwnd_ativo)
+            and janela_parece_edge(hwnd_ativo, config.get("navegador", {}))
+        ):
+            avisar(
+                status_callback,
+                "Fallback web interrompido: o foco saiu do Microsoft Edge.",
+                "red",
+            )
+            return False
+
+        painel_url_js = json.dumps(painel_url, ensure_ascii=True)
+        script = (
+            "script:(()=>{"
+            "document.getElementById('reward-right-pane')?.remove();"
+            "const p=document.createElement('section');"
+            "p.id='reward-right-pane';"
+            "Object.assign(p.style,{position:'fixed',top:'0',right:'0',"
+            "width:'376px',height:'100vh',background:'#fbfbfb',"
+            "borderLeft:'1px solid #ccc',zIndex:'2147483647',display:'block'});"
+            "const i=document.createElement('iframe');"
+            "i.id='reward-pane-frame';i.scrolling='no';"
+            f"i.src={painel_url_js};"
+            "Object.assign(i.style,{height:'100%',width:'100%',border:'0'});"
+            "p.appendChild(i);document.body.appendChild(p)})()"
+        )
+
+        pyautogui.hotkey("ctrl", "l")
+        if not dormir(0.25, stop_event):
+            return False
+        # Edge ignora o esquema javascript quando ele chega inteiro por paste.
+        pyautogui.write("java", interval=0.04)
+        pyperclip.copy(script)
+        pyautogui.hotkey("ctrl", "v")
+        pyautogui.press("enter")
+        if not dormir(delay_painel, stop_event):
+            return False
+
+        avisar(status_callback, "Fallback web do painel Rewards carregado.", "green")
+        return True
+    except Exception as exc:
+        avisar(status_callback, f"Falha ao abrir fallback web do Rewards: {exc}", "red")
+        return False
+    finally:
+        if clipboard_anterior is not None:
+            try:
+                pyperclip.copy(clipboard_anterior)
+            except Exception:
+                pass
+
+
+def copiar_saldo_rewards_dom(config, stop_event=None, status_callback=None):
+    """Le o saldo exposto pelo modelo oficial do iframe sem clicar no link."""
+    if deve_parar(stop_event):
+        return None
+
+    hwnd_ativo = obter_janela_ativa()
+    if not (
+        janela_windows_valida(hwnd_ativo)
+        and janela_parece_edge(hwnd_ativo, config.get("navegador", {}))
+    ):
+        return None
+
+    try:
+        import pyperclip
+    except Exception:
+        return None
+
+    prefixo = "__AI_REWARDS_BALANCE__"
+    clipboard_anterior = None
+    try:
+        clipboard_anterior = pyperclip.paste()
+    except Exception:
+        pass
+
+    script = (
+        "script:(()=>{try{"
+        "const f=document.getElementById('reward-pane-frame');"
+        "const v=f?.contentWindow?.flyoutViewModel?.userInfo?.balance;"
+        "const n=Number(v);if(!Number.isFinite(n))return;"
+        "const t=document.createElement('textarea');"
+        f"t.value='{prefixo}'+String(Math.trunc(n));"
+        "Object.assign(t.style,{position:'fixed',opacity:'0'});"
+        "document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();"
+        "}catch(_){}})()"
+    )
+
+    try:
+        pyautogui.hotkey("ctrl", "l")
+        if not dormir(0.2, stop_event):
+            return None
+        pyautogui.write("java", interval=0.04)
+        pyperclip.copy(script)
+        pyautogui.hotkey("ctrl", "v")
+        pyautogui.press("enter")
+
+        limite = time.monotonic() + 2.5
+        while time.monotonic() < limite:
+            if deve_parar(stop_event):
+                return None
+            texto = str(pyperclip.paste() or "")
+            if texto.startswith(prefixo):
+                saldo = texto[len(prefixo) :].strip()
+                if saldo.isdigit():
+                    avisar(
+                        status_callback,
+                        f"Saldo Rewards lido diretamente do painel oficial: {saldo}.",
+                        "green",
+                    )
+                    return saldo
+            time.sleep(0.1)
+
+        avisar(
+            status_callback,
+            "Painel abriu, mas o saldo nao ficou disponivel pelo modelo oficial.",
+            "orange",
+        )
+        return None
+    except Exception as exc:
+        avisar(status_callback, f"Falha ao ler saldo Rewards pelo painel: {exc}", "orange")
+        return None
+    finally:
+        if clipboard_anterior is not None:
+            try:
+                pyperclip.copy(clipboard_anterior)
+            except Exception:
+                pass
+
+
 def voltar_card_por_teclado(config, stop_event=None, status_callback=None):
     if deve_parar(stop_event):
         return False
@@ -2264,50 +2606,95 @@ def garantir_painel_rewards_visivel(
             obter_regiao_painel_rewards(config, status_callback)
             return True
 
-    painel_atual = obter_regiao_painel_rewards(
-        config,
-        status_callback,
-        permitir_cache_sem_deteccao=False,
-    )
-    if painel_atual is not None:
-        avisar(
-            status_callback,
-            "Painel Rewards confirmado pelo detector automatico depois do card.",
-        )
-        return True
-
     avisar(
         status_callback,
         "Painel Rewards nao esta visivel depois de voltar do card. Reabrindo a extensao.",
         "orange",
     )
-    if not abrir_extensao_rewards(
+    abriu_extensao = abrir_extensao_rewards(
         config,
         coordenadas,
         stop_event=stop_event,
         status_callback=status_callback,
         safety_callback=safety_callback,
-    ):
-        return False
-
-    if not esperar_intervalo(config, "apos_icone_extensao", stop_event, status_callback):
-        return False
-
-    estado = detectar_estado_rewards_atual(
-        config,
-        status_callback=status_callback,
-        stop_event=stop_event,
     )
-    if estado.get("ok") and str(estado.get("estado", "")).startswith("popup_rewards_ok"):
-        avisar(status_callback, "Painel Rewards reaberto com sucesso.", "green")
+    estado = None
+    if abriu_extensao:
+        if not esperar_intervalo(config, "apos_icone_extensao", stop_event, status_callback):
+            return False
+        estado = detectar_estado_rewards_atual(
+            config,
+            status_callback=status_callback,
+            stop_event=stop_event,
+        )
+        if estado.get("ok") and estado.get("estado") == "popup_rewards_ok":
+            avisar(status_callback, "Painel Rewards reaberto com sucesso.", "green")
+            return True
+
+    if abrir_painel_rewards_fallback_web(
+        config,
+        stop_event=stop_event,
+        status_callback=status_callback,
+    ):
+        limpar_cache_execucao(config)
+        estado = detectar_estado_rewards_atual(
+            config,
+            status_callback=status_callback,
+            stop_event=stop_event,
+        )
+        if estado.get("ok") and estado.get("estado") == "popup_rewards_ok":
+            avisar(status_callback, "Painel Rewards recuperado pelo fallback web.", "green")
+            return True
+
+    avisar(
+        status_callback,
+        "Nao consegui confirmar o painel Rewards apos reabrir: "
+        f"{(estado or {}).get('estado', 'nao_detectado')}.",
+        "red",
+    )
+    return False
+
+
+def recuperar_painel_rewards_apos_navegacao(
+    config,
+    coordenadas,
+    stop_event=None,
+    status_callback=None,
+    safety_callback=None,
+):
+    if not pagina_rewards_completa_ativa(config):
         return True
 
     avisar(
         status_callback,
-        f"Nao consegui confirmar o painel Rewards apos reabrir: {estado.get('estado')}.",
-        "red",
+        "A area de scroll abriu a pagina completa do Rewards. Voltando e reabrindo o painel lateral.",
+        "orange",
     )
-    return False
+    limpar_cache_execucao(config)
+    try:
+        pyautogui.hotkey("alt", "left")
+    except Exception as exc:
+        avisar(status_callback, f"Falha ao voltar da pagina completa do Rewards: {exc}", "red")
+        return False
+
+    if not dormir(1.0, stop_event):
+        return False
+
+    if pagina_rewards_completa_ativa(config):
+        avisar(
+            status_callback,
+            "Alt+Left nao saiu da pagina completa do Rewards; nao vou rolar a pagina errada.",
+            "red",
+        )
+        return False
+
+    return garantir_painel_rewards_visivel(
+        config,
+        coordenadas,
+        stop_event=stop_event,
+        status_callback=status_callback,
+        safety_callback=safety_callback,
+    )
 
 
 def alvo_ja_clicado(alvo, alvos_clicados, margem=45):
@@ -2641,45 +3028,21 @@ def focar_area_scroll(
     if deve_parar(stop_event):
         return False
 
-    if not usar_versao_fixa(config) and listar_templates_alvo_visual(config, "exibir_painel"):
-        avisar(
-            status_callback,
-            "Focando area de scroll pelo alvo treinado 'Exibir painel'.",
-        )
-        if clicar_alvo_visual(
-            config,
-            "exibir_painel",
-            stop_event=stop_event,
-            status_callback=status_callback,
-            safety_callback=safety_callback,
-        ):
-            return True
-
-        avisar(
-            status_callback,
-            "Nao consegui usar 'Exibir painel'. Vou tentar pelo painel detectado automaticamente.",
-            "orange",
-        )
-
     x, y, painel = obter_alvo_area_scroll(
         config,
         coordenadas,
         status_callback=status_callback,
-        para_clique=True,
+        para_clique=False,
         stop_event=stop_event,
     )
     if x is None or y is None:
         return False
 
-    if painel is None:
-        avisar(status_callback, f"Clicando uma vez para focar a area de scroll: x={x}, y={y}.")
-    elif painel.get("origem") == "exibir_painel":
-        avisar(status_callback, f"Clicando abaixo de 'Exibir painel' para focar o scroll: x={x}, y={y}.")
-    else:
-        avisar(
-            status_callback,
-            f"Clicando uma vez no topo seguro do painel detectado: x={x}, y={y}.",
-        )
+    origem = "alvo 'Exibir painel'" if painel and painel.get("origem") == "exibir_painel" else "painel Rewards"
+    avisar(
+        status_callback,
+        f"Posicionando o mouse no {origem} para rolar, sem clicar: x={x}, y={y}.",
+    )
     mover_mouse(x, y)
     if not dormir(config["tempos"]["movimento_mouse"], stop_event):
         return False
@@ -2693,7 +3056,6 @@ def focar_area_scroll(
         safety_callback=safety_callback,
     ):
         return False
-    clicar_mouse()
     return True
 
 
@@ -2845,6 +3207,57 @@ def painel_rewards_forte(config, painel):
 
     tem_tamanho_plausivel = int(painel.get("width", 0)) >= 320 and int(painel.get("height", 0)) >= 520
     return tem_tamanho_plausivel and score >= score_min and logo_score >= logo_min and close_score >= fechar_min
+
+
+def painel_parece_parcial_ou_fraco(config, referencia, candidato=None):
+    if referencia is None:
+        return True
+
+    origem = str(referencia.get("origem") or "")
+    if origem == "exibir_painel_anchor":
+        return True
+
+    if not painel_rewards_forte(config, referencia):
+        return True
+
+    if candidato is None:
+        return False
+
+    altura_ref = int(referencia.get("height", 0))
+    altura_cand = int(candidato.get("height", 0))
+    y_ref = int(referencia.get("y", 0))
+    y_cand = int(candidato.get("y", 0))
+
+    if altura_ref > 0 and altura_cand >= int(altura_ref * 1.25) and y_cand <= y_ref - 120:
+        return True
+
+    return False
+
+
+def cache_painel_melhor_que_deteccao(config, painel_cache, painel):
+    if painel_cache is None or painel is None:
+        return False
+
+    cache_forte = painel_rewards_forte(config, painel_cache)
+    painel_forte = painel_rewards_forte(config, painel)
+    if cache_forte and not painel_forte:
+        return True
+
+    altura_cache = int(painel_cache.get("height", 0))
+    altura_painel = int(painel.get("height", 0))
+    y_cache = int(painel_cache.get("y", 0))
+    y_painel = int(painel.get("y", 0))
+
+    if (
+        cache_forte
+        and altura_cache > 0
+        and altura_painel > 0
+        and altura_painel <= int(altura_cache * 0.70)
+        and y_painel >= y_cache + 160
+    ):
+        return True
+
+    return False
 
 
 def permitir_troca_painel_distante_sem_ancora(config):
@@ -3038,6 +3451,16 @@ def detectar_painel_atual(config, status_callback=None):
 
 
 def obter_regiao_painel_rewards(config, status_callback=None, permitir_cache_sem_deteccao=True):
+    if pagina_rewards_completa_ativa(config):
+        limpar_cache_alvo_visual(config, "exibir_painel")
+        limpar_cache_painel_rewards(config)
+        avisar(
+            status_callback,
+            "A pagina completa do Rewards esta ativa. Ignorando a ancora e o cache do painel lateral.",
+            "orange",
+        )
+        return None
+
     anchor = obter_anchor_exibir_painel(config)
     anchor_fresco = obter_anchor_exibir_painel(config, max_age=8.0)
     painel_cache = obter_cache_painel_rewards(config)
@@ -3057,6 +3480,16 @@ def obter_regiao_painel_rewards(config, status_callback=None, permitir_cache_sem
                 return salvar_cache_painel_rewards(config, painel_anchor)
             return painel_cache if permitir_cache_sem_deteccao else None
 
+        if painel_cache is not None and regioes_painel_compativeis(painel_cache, painel):
+            if cache_painel_melhor_que_deteccao(config, painel_cache, painel):
+                avisar(
+                    status_callback,
+                    "Detector encontrou uma regiao parcial/fraca do painel. "
+                    "Vou manter o cache completo anterior para nao perder o topo do Rewards.",
+                    "orange",
+                )
+                return painel_cache
+
         if painel_cache is not None and not regioes_painel_compativeis(painel_cache, painel):
             if anchor is not None:
                 avisar(
@@ -3069,6 +3502,17 @@ def obter_regiao_painel_rewards(config, status_callback=None, permitir_cache_sem
                 if painel_anchor is not None:
                     return salvar_cache_painel_rewards(config, painel_anchor)
                 return painel_cache if permitir_cache_sem_deteccao else None
+
+            if painel_rewards_forte(config, painel) and painel_parece_parcial_ou_fraco(
+                config, painel_cache, painel
+            ):
+                avisar(
+                    status_callback,
+                    "Painel detectado mudou para uma regiao distante, mas a nova deteccao "
+                    "esta forte e o cache antigo parecia parcial/fraco. Vou atualizar o cache do Rewards.",
+                    "orange",
+                )
+                return salvar_cache_painel_rewards(config, painel)
 
             if painel_rewards_forte(config, painel) and permitir_troca_painel_distante_sem_ancora(config):
                 avisar(
@@ -3641,13 +4085,71 @@ def executar_cards_por_imagem(
     if not focar_area_scroll(config, coordenadas, stop_event, status_callback, safety_callback):
         return False
 
+    if pagina_rewards_completa_ativa(config):
+        if not recuperar_painel_rewards_apos_navegacao(
+            config,
+            coordenadas,
+            stop_event=stop_event,
+            status_callback=status_callback,
+            safety_callback=safety_callback,
+        ):
+            return False
+        if not focar_area_scroll(
+            config,
+            coordenadas,
+            stop_event=stop_event,
+            status_callback=status_callback,
+            safety_callback=safety_callback,
+        ):
+            return False
+
     fim_scroll_detectado = False
     fim_scroll_confirmacoes = 0
     conferindo_apos_card = False
     limite_scrolls_atingido = False
+    recuperacoes_pagina_completa = 0
     while True:
         if deve_parar(stop_event):
             return False
+
+        if pagina_rewards_completa_ativa(config):
+            recuperacoes_pagina_completa += 1
+            if recuperacoes_pagina_completa > 2:
+                avisar(
+                    status_callback,
+                    "A pagina completa do Rewards reapareceu mais de duas vezes. "
+                    "Interrompendo para nao rolar ou clicar fora do painel lateral.",
+                    "red",
+                )
+                return False
+            if not recuperar_painel_rewards_apos_navegacao(
+                config,
+                coordenadas,
+                stop_event=stop_event,
+                status_callback=status_callback,
+                safety_callback=safety_callback,
+            ):
+                return False
+            if not focar_area_scroll(
+                config,
+                coordenadas,
+                stop_event=stop_event,
+                status_callback=status_callback,
+                safety_callback=safety_callback,
+            ):
+                return False
+            avisar(
+                status_callback,
+                "Painel lateral recuperado; reiniciando a varredura a partir do topo.",
+                "green",
+            )
+            alvos_clicados = []
+            scrolls = 0
+            estado_scroll["scrolls_concluidos"] = 0
+            estado_scroll["ticks_parciais"] = 0
+            fim_scroll_detectado = False
+            fim_scroll_confirmacoes = 0
+            conferindo_apos_card = False
 
         if conferindo_apos_card:
             avisar(

@@ -1,6 +1,7 @@
 from automacao_edge import (
     abrir_edge,
     abrir_extensao_rewards,
+    abrir_painel_rewards_fallback_web,
     aguardar_janela_edge,
     carregar_coordenadas,
     detectar_estado_rewards_atual,
@@ -203,9 +204,10 @@ class EdgeSessionMixin:
             contexto="Recuperacao das pesquisas",
         )
 
-    def abrir_painel_rewards_sessao(self, tentativas=2):
+    def abrir_painel_rewards_sessao(self, tentativas=2, permitir_reinicio=True):
         coordenadas = carregar_coordenadas(self.config)
         total_tentativas = max(1, int(tentativas))
+        ultimo_estado = "painel_nao_abriu"
 
         for tentativa in range(1, total_tentativas + 1):
             if not self.garantir_sessao_edge():
@@ -227,6 +229,7 @@ class EdgeSessionMixin:
                 status_callback=self.status_com_log,
                 safety_callback=self.confirmar_intervencao_mouse,
             ):
+                ultimo_estado = "icone_extensao_nao_encontrado"
                 continue
 
             if not self.sleep_intervalo(self.config["tempos"]["apos_icone_extensao"]):
@@ -234,30 +237,41 @@ class EdgeSessionMixin:
 
             estado = self.detectar_estado_rewards()
             estado_nome = estado.get("estado", "desconhecido")
-            if estado.get("ok") and estado_nome.startswith("popup_rewards_ok"):
+            ultimo_estado = estado_nome
+            if estado.get("ok") and estado_nome == "popup_rewards_ok":
                 anchor = estado.get("anchor_exibir_painel") or {}
                 if "x" in anchor and "y" in anchor:
                     return int(anchor["x"]), int(anchor["y"])
 
-                painel = estado.get("painel") or {}
-                if {"x", "y", "width", "height"}.issubset(painel):
-                    return (
-                        int(painel["x"] + painel["width"] // 2),
-                        int(painel["y"] + min(260, max(120, painel["height"] // 4))),
-                    )
-
-            if estado_nome in {"popup_rewards_inutilizavel", "pagina_rewards_completa", "desconhecido"}:
-                self.status_com_log(
-                    f"Painel Rewards nao esta utilizavel ({estado_nome}).",
-                    "orange",
-                )
-                if self.reiniciar_edge_por_estado_rewards(estado_nome):
-                    continue
-                return None
-
             self.status_com_log(
                 "Painel Rewards ainda nao confirmado apos clicar na extensao.",
                 "orange",
+            )
+
+        if self.garantir_sessao_edge() and abrir_painel_rewards_fallback_web(
+            self.config,
+            stop_event=self.stop_automation,
+            status_callback=self.status_com_log,
+        ):
+            estado = self.detectar_estado_rewards()
+            ultimo_estado = estado.get("estado", "fallback_nao_confirmado")
+            anchor = estado.get("anchor_exibir_painel") or {}
+            if (
+                estado.get("ok")
+                and estado.get("estado") == "popup_rewards_ok"
+                and "x" in anchor
+                and "y" in anchor
+            ):
+                self.status_com_log(
+                    "Painel Rewards recuperado pelo fallback web oficial.",
+                    "green",
+                )
+                return int(anchor["x"]), int(anchor["y"])
+
+        if permitir_reinicio and self.reiniciar_edge_por_estado_rewards(ultimo_estado):
+            return self.abrir_painel_rewards_sessao(
+                tentativas=tentativas,
+                permitir_reinicio=False,
             )
 
         return None
