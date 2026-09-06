@@ -1,4 +1,6 @@
 /assets/**
+!/assets/rewards_app/
+!/assets/rewards_app/**
 /logs/
 /build/
 /dist/

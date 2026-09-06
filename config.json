@@ -423,7 +423,21 @@
       "executar_conjunto_diario": true,
       "executar_pesquisas": true,
       "executar_edge_tempo": true,
-      "executar_brotato": true
+      "executar_brotato": true,
+      "executar_rewards_app": true
     }
+  },
+  "rewards_app": {
+    "executar": true,
+    "app_id": "Microsoft.24183918CCDA_8wekyb3d8bbwe!MicrosoftRewards",
+    "confianca": 0.88,
+    "timeout_segundos": 35,
+    "max_cards": 30,
+    "max_scrolls": 60,
+    "max_tentativas_card": 2,
+    "scroll_passos": -4,
+    "confirmacoes_fim": 3,
+    "espera_pesquisa_segundos": 5,
+    "espera_retorno_segundos": 2
   }
 }

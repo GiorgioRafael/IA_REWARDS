@@ -76,6 +76,7 @@ from dashboard_mixin import DashboardMixin
 from edge_session_mixin import EdgeSessionMixin
 from execucao_logger import ExecucaoLogger
 from training_detection_mixin import TrainingDetectionMixin
+from rewards_app import executar_rewards_app
 
 AUTO_TASK_DEFAULT_NAME = "AI Rewards Automacao"
 
@@ -349,6 +350,9 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         self.executar_brotato_var = tk.BooleanVar(
             value=brotato.get("executar", False)
         )
+        self.executar_rewards_app_var = tk.BooleanVar(
+            value=self.config.get("rewards_app", {}).get("executar", True)
+        )
         self.brotato_app_busca_var = tk.StringVar(
             value=brotato.get("app_busca", DEFAULT_CONFIG["brotato"]["app_busca"])
         )
@@ -384,6 +388,9 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         )
         agendamento_fluxo = agendamento.get("fluxo", {})
         agendamento_fluxo_padrao = DEFAULT_CONFIG["agendamento_automatico"]["fluxo"]
+        self.agendamento_executar_rewards_app_var = tk.BooleanVar(
+            value=agendamento_fluxo.get("executar_rewards_app", True)
+        )
         self.agendamento_executar_conjunto_var = tk.BooleanVar(
             value=agendamento_fluxo.get(
                 "executar_conjunto_diario",
@@ -489,6 +496,10 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             variable=self.executar_brotato_var,
         ).grid(row=1, column=0, sticky="w", padx=5, pady=5)
 
+        ttk.Checkbutton(
+            fluxo_frame, text="Microsoft Rewards (cards +10)",
+            variable=self.executar_rewards_app_var,
+        ).grid(row=1, column=1, columnspan=2, sticky="w", padx=5, pady=5)
         debug_frame = ttk.LabelFrame(
             self.debug_tab, text="Debug > Log em tempo real", padding="10"
         )
@@ -901,6 +912,10 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             padding="10",
         )
         fluxo_frame.pack(fill="x", pady=(0, 10))
+        ttk.Checkbutton(
+            fluxo_frame, text="Microsoft Rewards (cards +10)",
+            variable=self.agendamento_executar_rewards_app_var,
+        ).grid(row=1, column=1, columnspan=2, sticky="w", padx=5, pady=5)
 
         ttk.Checkbutton(
             fluxo_frame,
@@ -921,7 +936,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             fluxo_frame,
             text="Jogar PC (Brotato)",
             variable=self.agendamento_executar_brotato_var,
-        ).grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+        ).grid(row=1, column=0, sticky="w", padx=5, pady=5)
 
         ttk.Label(
             fluxo_frame,
@@ -1698,6 +1713,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
 
             brotato = self.config.setdefault("brotato", {})
             brotato["executar"] = self.executar_brotato_var.get()
+            self.config.setdefault("rewards_app", {})["executar"] = self.executar_rewards_app_var.get()
             brotato["app_busca"] = self.brotato_app_busca_var.get().strip() or "Brotato"
             brotato["ignorar_verificacoes"] = self.brotato_ignorar_verificacoes_var.get()
             brotato["tempo_minutos"] = self.parse_float(
@@ -1740,6 +1756,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
             agendamento["desligar_ao_finalizar"] = self.agendamento_desligar_var.get()
             agendamento.setdefault("task_name", AUTO_TASK_DEFAULT_NAME)
             agendamento["fluxo"] = {
+                "executar_rewards_app": self.agendamento_executar_rewards_app_var.get(),
                 "executar_conjunto_diario": self.agendamento_executar_conjunto_var.get(),
                 "executar_pesquisas": self.agendamento_executar_pesquisas_var.get(),
                 "executar_edge_tempo": self.agendamento_executar_edge_tempo_var.get(),
@@ -2030,7 +2047,8 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
 
     def fluxo_tem_alguma_funcao(self, fluxo):
         return (
-            bool(fluxo.get("executar_conjunto_diario", False))
+            bool(fluxo.get("executar_rewards_app", False))
+            or bool(fluxo.get("executar_conjunto_diario", False))
             or bool(fluxo.get("executar_pesquisas", False))
             or bool(fluxo.get("executar_edge_tempo", False))
             or bool(fluxo.get("executar_brotato", False))
@@ -2039,6 +2057,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
     def obter_fluxo_manual_config(self):
         pesquisas = self.config["pesquisas"]
         return {
+            "executar_rewards_app": bool(self.config.get("rewards_app", {}).get("executar", False)),
             "executar_conjunto_diario": bool(
                 pesquisas.get("executar_conjunto_diario", False)
             ),
@@ -2056,6 +2075,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         fluxo = agendamento.get("fluxo", {})
         padrao = DEFAULT_CONFIG["agendamento_automatico"]["fluxo"]
         return {
+            "executar_rewards_app": bool(fluxo.get("executar_rewards_app", padrao["executar_rewards_app"])),
             "executar_conjunto_diario": bool(
                 fluxo.get(
                     "executar_conjunto_diario",
@@ -2074,6 +2094,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         }
 
     def aplicar_fluxo_config(self, fluxo):
+        self.config.setdefault("rewards_app", {})["executar"] = bool(fluxo.get("executar_rewards_app", False))
         pesquisas = self.config.setdefault("pesquisas", {})
         pesquisas["executar_conjunto_diario"] = bool(
             fluxo.get("executar_conjunto_diario", False)
@@ -2090,6 +2111,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
 
     def descrever_fluxo_config(self, fluxo):
         nomes = [
+            ("executar_rewards_app", "Microsoft Rewards (cards +10)"),
             ("executar_conjunto_diario", "Conjunto diario"),
             ("executar_pesquisas", "Pesquisar com o Bing"),
             ("executar_edge_tempo", "Navegar com Edge"),
@@ -2105,7 +2127,7 @@ class AutoRewardsApp(EdgeSessionMixin, DashboardMixin, TrainingDetectionMixin):
         messagebox.showwarning(
             "Nenhuma funcao selecionada",
             "Selecione pelo menos uma funcao primaria: Conjunto diario, "
-            "Pesquisar com o Bing, Navegar com Edge ou Jogar PC (Brotato).",
+            "Pesquisar com o Bing, Navegar com Edge, Jogar PC (Brotato) ou Microsoft Rewards (cards +10).",
             parent=self.root,
         )
         return False
@@ -2297,10 +2319,11 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
             and not pesquisas.get("executar_pesquisas", True)
             and not executar_edge_tempo
             and not executar_brotato
+            and not self.config.get("rewards_app", {}).get("executar", False)
         ):
             messagebox.showwarning(
                 "Nenhuma função selecionada",
-                "Selecione pelo menos uma função primária: Conjunto diário, Pesquisar com o Bing, Navegar com Edge ou Jogar PC (Brotato).",
+                "Selecione pelo menos uma função primária: Conjunto diário, Pesquisar com o Bing, Navegar com Edge, Jogar PC (Brotato) ou Microsoft Rewards (cards +10).",
                 parent=self.root,
             )
             return
@@ -2768,9 +2791,23 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
             executar_pesquisas = self.config["pesquisas"].get("executar_pesquisas", True)
             executar_edge_tempo = self.config.get("edge_tempo", {}).get("executar", False)
             executar_brotato = self.config.get("brotato", {}).get("executar", False)
+            executar_app = self.config.get("rewards_app", {}).get("executar", False)
             edge_aberto = False
             houve_falha_parcial = False
             self.brotato_aberto = False
+
+            if executar_app:
+                self.marcar_etapa("Microsoft Rewards (cards +10)", "em execucao")
+                try:
+                    resultado_app = executar_rewards_app(self.config, self.stop_automation, self.status_com_log)
+                    self.marcar_etapa("Microsoft Rewards (cards +10)", "ok", f"{resultado_app['cards_abertos']} card(s); fim sem +10 confirmado.")
+                except Exception as exc:
+                    self.marcar_etapa("Microsoft Rewards (cards +10)", "falhou", str(exc))
+                    self.capturar_screenshot_falha("rewards_app", str(exc))
+                    self.status_com_log(f"Etapa Microsoft Rewards falhou: {exc}", "orange")
+                    houve_falha_parcial = True
+                if self.stop_automation.is_set():
+                    return False
 
             if executar_conjunto:
                 self.marcar_etapa("Conjunto diario", "pendente")
@@ -3107,13 +3144,13 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Se
                     self.capturar_screenshot_falha("brotato", "Fluxo do Brotato retornou falha.")
                     return False
 
-            if not executar_conjunto and not executar_pesquisas and not executar_edge_tempo and not executar_brotato:
+            if not executar_conjunto and not executar_pesquisas and not executar_edge_tempo and not executar_brotato and not executar_app:
                 self.status_com_log("Nenhuma funcao primaria selecionada.", "orange")
                 return False
 
             if houve_falha_parcial:
                 self.status_com_log(
-                    "Fluxo terminou, mas o Conjunto diario falhou. Veja o resumo final.",
+                    "Fluxo terminou com falha em uma ou mais etapas. Veja o resumo final.",
                     "orange",
                 )
                 return False

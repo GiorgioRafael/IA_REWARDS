@@ -12,6 +12,19 @@ SW_RESTORE = 9
 
 DEFAULT_CONFIG = {
     "app_busca": "EDGE",
+    "rewards_app": {
+        "executar": True,
+        "app_id": "Microsoft.24183918CCDA_8wekyb3d8bbwe!MicrosoftRewards",
+        "confianca": 0.88,
+        "timeout_segundos": 35,
+        "max_cards": 30,
+        "max_scrolls": 60,
+        "max_tentativas_card": 2,
+        "scroll_passos": -4,
+        "confirmacoes_fim": 3,
+        "espera_pesquisa_segundos": 5,
+        "espera_retorno_segundos": 2,
+    },
     "automacao": {
         "usar_versao_fixa": True,
     },
@@ -309,6 +322,7 @@ DEFAULT_CONFIG = {
         "delay_desligar_falha_minutos": 31,
         "task_name": "AI Rewards Automacao",
         "fluxo": {
+            "executar_rewards_app": True,
             "executar_conjunto_diario": True,
             "executar_pesquisas": True,
             "executar_edge_tempo": False,

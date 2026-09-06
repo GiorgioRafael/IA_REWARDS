@@ -1,0 +1,51 @@
+{
+  "method": "RGB template matching with scale search and green badge rejection",
+  "captures": "Microsoft Rewards desktop 1.3.0.0, 1103x793",
+  "crops": {
+    "ganhar_live": [
+      "live_pending",
+      [
+        353,
+        49,
+        403,
+        65
+      ]
+    ],
+    "continuar_live": [
+      "live_pending",
+      [
+        46,
+        133,
+        245,
+        157
+      ]
+    ],
+    "plus10_live": [
+      "live_pending",
+      [
+        175,
+        536,
+        208,
+        559
+      ]
+    ],
+    "voltar_live": [
+      "live_search",
+      [
+        16,
+        39,
+        41,
+        61
+      ]
+    ],
+    "pesquisa_live": [
+      "live_search",
+      [
+        114,
+        159,
+        157,
+        177
+      ]
+    ]
+  }
+}
